@@ -11,5 +11,5 @@ def get_health() -> HealthResponse:
     return HealthResponse(
         app_name=settings.app_name,
         environment=settings.app_env,
-        version="0.1.0",
+        version="0.2.0",
     )

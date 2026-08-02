@@ -19,3 +19,30 @@ def test_contract_endpoint() -> None:
     payload = response.json()
     assert payload["service"] == "rag-lab-backend"
     assert len(payload["endpoints"]) >= 4
+
+
+def test_datasets_endpoint() -> None:
+    response = client.get("/api/v1/datasets")
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["items"]) >= 3
+
+
+def test_pipeline_endpoint() -> None:
+    response = client.post(
+        "/api/v1/pipeline/run",
+        data={
+            "query": "What is RAG?",
+            "dataset_id": "intro-rag",
+            "chunker": "recursive",
+            "vector_store": "faiss",
+            "top_k": 3,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["query"] == "What is RAG?"
+    assert payload["dataset"]["id"] == "intro-rag"
+    assert payload["chunks"]
+    assert payload["retrieved_chunks"]
+    assert payload["answer"]

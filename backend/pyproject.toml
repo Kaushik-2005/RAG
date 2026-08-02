@@ -22,7 +22,7 @@ dependencies = [
   "numpy>=1.26,<3.0",
   "scikit-learn>=1.5,<2.0",
   "networkx>=3.3,<4.0",
-  "pypdf>=4.3,<5.0",
+  "groq>=0.32,<1.0",
 ]
 
 [project.optional-dependencies]
