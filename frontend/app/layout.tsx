@@ -1,42 +1,24 @@
-import Link from "next/link";
-import type { ReactNode } from "react";
-
+import type { Metadata } from "next";
+import "github-markdown-css/github-markdown.css";
 import "./globals.css";
 
-export const metadata = {
-  title: "RAG Lab",
-  description: "Educational RAG exploration platform",
+import { Footer } from "@/app/components/footer";
+import { Header } from "@/app/components/header";
+import { Toaster } from "@/components/ui/sonner";
+
+export const metadata: Metadata = {
+  title: "RAG Playground - Interactive RAG Pipeline Visualization",
+  description: "An interactive tool for visualizing and understanding Retrieval-Augmented Generation pipelines with a Python backend.",
 };
 
-const navItems = [
-  { href: "/", label: "Home" },
-  { href: "/learn", label: "Learn" },
-  { href: "/pipeline", label: "Pipeline" },
-];
-
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>
-        <div className="app-shell">
-          <header className="topbar">
-            <div>
-              <p className="eyebrow">RAG Lab</p>
-              <p className="topbar-copy">Educational RAG playground. Local-first. Free-to-run by default.</p>
-            </div>
-            <nav className="nav">
-              {navItems.map((item) => (
-                <Link key={item.href} href={item.href} className="nav-link">
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </header>
-          {children}
-          <footer className="footer">
-            <p>Built for learning the RAG pipeline, step by step.</p>
-          </footer>
-        </div>
+      <body suppressHydrationWarning>
+        <Header />
+        {children}
+        <Footer />
+        <Toaster />
       </body>
     </html>
   );

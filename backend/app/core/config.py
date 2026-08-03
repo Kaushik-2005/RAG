@@ -10,12 +10,11 @@ class Settings(BaseSettings):
     embedding_provider: str = "tfidf"
     embedding_model: str = "all-MiniLM-L6-v2"
     llm_provider: str = "groq"
-    groq_api_key: str = "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"
-    groq_model: str = "openai/gpt-oss-20b"
-    groq_temperature: float = 0
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.1-8b-instant"
+    groq_temperature: float = 1.0
     groq_top_p: float = 1.0
     groq_max_completion_tokens: int = 2048
-    groq_reasoning_effort: str = "medium"
     llm_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

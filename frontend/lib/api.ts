@@ -1,34 +1,5 @@
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
-export type DatasetSummary = {
-  id: string;
-  name: string;
-  description: string;
-  source: string;
-  recommended_chunker: string;
-  preview: string;
-};
-
-export type HealthResponse = {
-  status: string;
-  app_name: string;
-  environment: string;
-  version: string;
-};
-
-export type ContractResponse = {
-  service: string;
-  endpoints: Array<{ method: string; path: string; purpose: string }>;
-  note: string;
-};
-
-export type PipelineStep = {
-  id: string;
-  title: string;
-  description: string;
-  explanation: string;
-};
-
 export type Chunk = {
   index: number;
   text: string;
@@ -45,58 +16,26 @@ export type RetrievalMatch = {
   text: string;
 };
 
-export type PipelineVisuals = {
-  chunk_lengths: number[];
-  scores: number[];
-  retrieved_indices: number[];
-  embedding_provider: string;
-  embedding_model: string;
-  vector_store_backend: string;
-  source_kind: string;
-  top_k: number;
-  chunker: string;
-};
-
 export type PipelineResponse = {
   query: string;
-  dataset: DatasetSummary;
-  loader: string;
+  source_title: string;
+  source_kind: string;
   chunker: string;
-  embedding_provider: string;
+  chunk_size: number;
+  chunk_overlap: number;
+  embedding_backend: string;
   embedding_model: string;
+  embedding_dimension: number;
   vector_store: string;
-  llm_provider: string;
+  vector_store_backend: string;
+  top_k: number;
   answer: string;
   context: string;
   chunks: Chunk[];
+  chunk_embeddings: number[][];
+  query_embedding: number[];
   retrieved_chunks: RetrievalMatch[];
-  steps: PipelineStep[];
-  visuals: PipelineVisuals;
 };
-
-async function requestJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`${path} request failed: ${response.status}`);
-  }
-
-  return response.json() as Promise<T>;
-}
-
-export function getHealth() {
-  return requestJson<HealthResponse>("/api/v1/health");
-}
-
-export function getContracts() {
-  return requestJson<ContractResponse>("/api/v1/contracts");
-}
-
-export function getDatasets() {
-  return requestJson<{ items: DatasetSummary[] }>("/api/v1/datasets");
-}
 
 export async function runPipeline(formData: FormData) {
   const response = await fetch(`${apiBaseUrl}/api/v1/pipeline/run`, {

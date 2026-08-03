@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -56,33 +56,36 @@ class RetrievalMatch(BaseModel):
     text: str
 
 
-class PipelineStep(BaseModel):
-    id: str
-    title: str
-    description: str
-    explanation: str
-
-
 class PipelineRunResponse(BaseModel):
     query: str
-    dataset: DemoDatasetSummary
-    loader: str
+    source_title: str
+    source_kind: str
     chunker: ChunkerName
-    embedding_provider: str
+    chunk_size: int
+    chunk_overlap: int
+    embedding_backend: str
     embedding_model: str
+    embedding_dimension: int
     vector_store: VectorStoreName
-    llm_provider: str
+    vector_store_backend: str
+    top_k: int
     answer: str
     context: str
     chunks: list[ChunkModel]
+    chunk_embeddings: list[list[float]]
+    query_embedding: list[float]
     retrieved_chunks: list[RetrievalMatch]
-    steps: list[PipelineStep]
-    visuals: dict[str, Any]
 
 
 class PipelineRunRequest(BaseModel):
     query: str = Field(min_length=1)
+    source_text: str | None = None
     dataset_id: str | None = None
+    source_title: str | None = None
     chunker: ChunkerName = "recursive"
+    chunk_size: int = Field(default=320, ge=32, le=4000)
+    chunk_overlap: int = Field(default=50, ge=0, le=2000)
+    embedding_model: str = "tfidf"
     vector_store: VectorStoreName = "faiss"
     top_k: int = Field(default=3, ge=1, le=8)
+

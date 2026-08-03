@@ -42,7 +42,9 @@ def test_pipeline_endpoint() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["query"] == "What is RAG?"
-    assert payload["dataset"]["id"] == "intro-rag"
+    assert payload["source_title"] == "Intro to RAG"
+    assert payload["source_kind"] == "built-in"
+    assert payload["chunker"] == "recursive"
     assert payload["chunks"]
     assert payload["retrieved_chunks"]
     assert payload["answer"]
