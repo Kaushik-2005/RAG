@@ -65,7 +65,7 @@ export default function Home() {
           <div className="space-y-4">
             <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">Interactive RAG Lab</h1>
             <p className="mx-auto max-w-[700px] text-gray-500 dark:text-gray-400 md:text-xl">
-              Debug, visualize, and understand Retrieval-Augmented Generation through a Python-backed interactive lab.
+              Debug, visualize, and understand Retrieval-Augmented Generation through a frontend-first interactive lab.
             </p>
           </div>
           <div className="flex space-x-4">

@@ -11,7 +11,9 @@ The app now runs with a frontend-first architecture:
 
 ## Current architecture
 
-- `frontend/` — Next.js application, browser-side pipeline, and `/api/generate`
+- `app/` — Next.js routes and pages
+- `components/` — shared UI components
+- `lib/` — browser-side pipeline logic and client utilities
 - `docs/` — setup and architecture notes
 - `scripts/` — local helpers
 - `shared/` — shared project assets if needed later
