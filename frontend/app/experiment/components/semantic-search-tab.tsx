@@ -13,6 +13,12 @@ import { type VectorStoreValue, vectorStoreOptions, stageTabs } from "./experime
 type StageMeta = (typeof stageTabs)[number];
 type Point = { x: number; y: number; label: string; chunk: number };
 
+const previewVector = (vector: number[], limit = 8) => {
+  const informative = vector.filter((value) => Math.abs(value) > 1e-8);
+  const sample = (informative.length ? informative : vector).slice(0, limit);
+  return `[${sample.map((value) => Number(value).toFixed(4)).join(", ")}${(informative.length ? informative : vector).length > limit ? ", ..." : ""}]`;
+};
+
 type Props = {
   currentStage: StageMeta;
   query: string;
@@ -31,7 +37,7 @@ type Props = {
 
 export function SemanticSearchTab({ currentStage, query, setQuery, vectorStore, setVectorStore, topK, setTopK, loading, error, result, points, queryPoint, onRun }: Props) {
   return (
-    <Card>
+    <Card className="border-0 bg-transparent shadow-none rounded-none">
       <CardHeader>
         <CardTitle>{currentStage.title}</CardTitle>
         <CardDescription>{currentStage.description}</CardDescription>
@@ -60,7 +66,7 @@ export function SemanticSearchTab({ currentStage, query, setQuery, vectorStore, 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </form>
 
-        <section className="search-query-panel"><label className="search-section-label">Question embedding</label><pre className="search-embedding-preview">{result?.query_embedding?.length ? `[${result.query_embedding.slice(0, 8).map((value) => Number(value).toFixed(4)).join(", ")}${result.query_embedding.length > 8 ? ", ..." : ""}]` : "Run the search to generate a query embedding."}</pre><p className="embed-vector-meta">Question embedding • {result?.query_embedding?.length ?? 0} dimensions</p></section>
+        <section className="search-query-panel"><label className="search-section-label">Question embedding</label><pre className="search-embedding-preview">{result?.query_embedding?.length ? previewVector(result.query_embedding) : "Run the search to generate a query embedding."}</pre><p className="embed-vector-meta">Question embedding • {result?.query_embedding?.length ?? 0} dimensions</p></section>
 
         {points.length > 0 ? <div className="search-top-grid"><section className="search-chart-panel"><LowVectorVisualization data={points.map((point) => ({ x: point.x, y: point.y, title: point.label }))} query={queryPoint ? { x: queryPoint.x, y: queryPoint.y, title: "Question" } : undefined} title="Query Similarity" datasetLabel="Chunks" queryLabel="Question" className="h-[400px]" /></section><section className="search-notes-panel"><div className="search-notes-card"><p>The query is embedded with the same model as the knowledge-base chunks, then ranked by vector similarity.</p><p>This separates indexing from retrieval: chunk embeddings are prepared first, while query embedding and similarity scoring happen when a question is asked.</p><p>The chart is computed from the raw query embedding and chunk embeddings together, then projected into the same 2D space.</p><div className="pipeline-metadata search-meta"><span>Vector store: {result?.vector_store ?? vectorStore}</span><span>Backend: {result?.vector_store_backend ?? "—"}</span><span>Embedding model: {result?.embedding_model ?? "—"}</span><span>Top-k: {result?.top_k ?? topK}</span></div></div></section></div> : null}
 

@@ -12,6 +12,12 @@ import { embeddingOptions, type EmbeddingValue, stageTabs } from "./experiment-c
 type StageMeta = (typeof stageTabs)[number];
 type Point = { x: number; y: number; label: string; chunk: number };
 
+const previewVector = (vector: number[], limit = 8) => {
+  const informative = vector.filter((value) => Math.abs(value) > 1e-8);
+  const sample = (informative.length ? informative : vector).slice(0, limit);
+  return `[${sample.map((value) => Number(value).toFixed(4)).join(", ")}${(informative.length ? informative : vector).length > limit ? ", ..." : ""}]`;
+};
+
 type Props = {
   currentStage: StageMeta;
   embeddingModel: EmbeddingValue;
@@ -25,7 +31,7 @@ type Props = {
 
 export function EmbeddingTab({ currentStage, embeddingModel, setEmbeddingModel, loading, error, result, points, onRun }: Props) {
   return (
-    <Card>
+    <Card className="border-0 bg-transparent shadow-none rounded-none">
       <CardHeader>
         <CardTitle>{currentStage.title}</CardTitle>
         <CardDescription>{currentStage.description}</CardDescription>

@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleHelp } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -8,12 +9,13 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PipelineResponse } from "@/lib/api";
 import { chunkerOptions, defaultSourceText, type ChunkerValue, stageTabs } from "./experiment-content";
 
 type StageMeta = (typeof stageTabs)[number];
 
-const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
 
 type Props = {
   currentStage: StageMeta;
@@ -31,12 +33,29 @@ type Props = {
   onRun: (event?: React.FormEvent<HTMLFormElement>) => Promise<void>;
 };
 
+const LabelWithInfo = ({ label, hint }: { label: string; hint: string }) => (
+  <div className="split-inline-label">
+    <span>{label}</span>
+    <TooltipProvider delayDuration={120}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" className="split-inline-help-button" aria-label={`${label} explanation`}>
+            <CircleHelp className="split-inline-icon" aria-hidden="true" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[260px] leading-relaxed">
+          <p>{hint}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  </div>
+);
+
 export function TextSplittingTab({ currentStage, sourceText, setSourceText, chunker, setChunker, chunkSize, setChunkSize, chunkOverlap, setChunkOverlap, loading, error, result, onRun }: Props) {
   const averageChunkSize = result?.chunks.length ? Math.round(result.chunks.reduce((sum, chunk) => sum + chunk.char_count, 0) / result.chunks.length) : 0;
-  const colorMap: Record<ChunkerValue, string> = { recursive: "split-dot-blue", character: "split-dot-green", token: "split-dot-purple", markdown: "split-dot-amber" };
+  const colorMap: Record<ChunkerValue, string> = { character: "split-dot-blue", recursive: "split-dot-green", token: "split-dot-purple", markdown: "split-dot-amber" };
   const [hoveredChunkIndex, setHoveredChunkIndex] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const previewRef = useRef<HTMLDivElement | null>(null);
 
   const highlightedSourceHtml = useMemo(() => {
     if (hoveredChunkIndex === null || !result?.chunks?.[hoveredChunkIndex]) return null;
@@ -60,7 +79,7 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
   };
 
   return (
-    <Card>
+    <Card className="border-0 bg-transparent shadow-none rounded-none">
       <CardHeader>
         <CardTitle>{currentStage.title}</CardTitle>
         <CardDescription>{currentStage.description}</CardDescription>
@@ -72,61 +91,88 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
             </li>
           ))}
         </ul>
-        <blockquote className="split-warning">When text segments do not fit neatly into the configured chunk size, the splitter may return chunks that are slightly over the limit in order to preserve better boundaries.</blockquote>
+        <blockquote className="split-warning">When merging and splitting segments, some segments themselves exceed the chunk size in length, or the splitting logic causes the combined length to exceed the set value, resulting in over-limit chunks.</blockquote>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <form className="space-y-4" onSubmit={onRun}>
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium">Split Strategy:</span>
-              <Select value={chunker} onValueChange={(value) => setChunker(value as ChunkerValue)}>
-                <SelectTrigger className="w-[254px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {chunkerOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
+      <CardContent className="space-y-6">
+        <form className="space-y-3" onSubmit={onRun}>
+          <div className="split-controls-stack">
+            <div className="split-controls-row split-controls-row-top">
+              <div className="split-inline-control split-inline-control-strategy">
+                <LabelWithInfo label="Split Strategy:" hint="Choose how the source text is broken into chunks." />
+                <Select value={chunker} onValueChange={(value) => setChunker(value as ChunkerValue)}>
+                  <SelectTrigger className="split-control-surface split-control-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chunkerOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="split-control-actions split-control-actions-inline">
+                <Button type="button" variant="outline" className="split-control-button" onClick={() => setSourceText(defaultSourceText)}>Reset sample</Button>
+                <Button type="submit" className="split-control-button" disabled={loading}>{loading ? "Updating chunks..." : "Update chunks"}</Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Chunk Size:</span>
-              <Input type="number" min={32} max={4000} value={chunkSize} onChange={(event) => setChunkSize(Number(event.target.value))} className="w-24" />
+
+            <div className="split-controls-row split-controls-row-bottom">
+              <div className="split-inline-control">
+                <LabelWithInfo label="Chunk Size:" hint="Maximum target size for each chunk in characters." />
+                <Input type="number" min={32} max={4000} value={chunkSize} onChange={(event) => setChunkSize(Number(event.target.value))} className="split-control-surface split-control-number" />
+              </div>
+
+              <div className="split-inline-control">
+                <LabelWithInfo label="Overlap Size:" hint="Characters repeated between neighboring chunks to preserve continuity." />
+                <Input type="number" min={0} max={2000} value={chunkOverlap} onChange={(event) => setChunkOverlap(Number(event.target.value))} className="split-control-surface split-control-number" />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Overlap Size:</span>
-              <Input type="number" min={0} max={2000} value={chunkOverlap} onChange={(event) => setChunkOverlap(Number(event.target.value))} className="w-24" />
-            </div>
-            <Button type="button" variant="outline" onClick={() => setSourceText(defaultSourceText)}>Reset sample</Button>
-            <Button type="submit" disabled={loading}>{loading ? "Updating chunks..." : "Update chunks"}</Button>
           </div>
+
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </form>
 
-        <div className="stage-hint-row"><span className="text-sm font-medium">Separators:</span><span className="stage-hint-pill">Paragraph breaks</span><span className="stage-hint-pill">Sentence boundaries</span><span className="stage-hint-pill">Spaces</span></div>
+        <div className="split-workbench-head split-workbench-head-simple">
+          <div className="split-workbench-head-left">
+            <span className="split-pane-kicker">Source Document</span>
+          </div>
+          <div className="split-workbench-head-right">
+            <span className="split-pane-kicker">Generated Chunks</span>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <section className="space-y-3">
-            <div className="flex items-center justify-between"><label className="text-sm font-medium">Source Document</label><div className="text-xs text-muted-foreground">Editable paragraph</div></div>
+        <div className="split-workbench-grid">
+          <section className="split-workbench-panel split-workbench-panel-source">
+            <label className="sr-only" htmlFor="source-paragraph">Source paragraph</label>
             {highlightedSourceHtml ? (
-              <div ref={previewRef} className="split-source-preview-pane">
+              <div className="split-source-preview-pane">
                 <div className="split-source-preview-text" dangerouslySetInnerHTML={{ __html: highlightedSourceHtml }} />
               </div>
             ) : (
-              <Textarea ref={textareaRef} value={sourceText} onChange={(event) => setSourceText(event.target.value)} className="min-h-[540px] resize-y border-2 border-dashed border-muted-foreground/25 font-mono text-base leading-relaxed" />
+              <Textarea id="source-paragraph" ref={textareaRef} value={sourceText} onChange={(event) => setSourceText(event.target.value)} className="split-source-textarea min-h-[640px] resize-y border-2 border-dashed border-muted-foreground/25 text-base leading-relaxed" />
             )}
           </section>
-          <section className="space-y-3">
-            <div className="flex items-center justify-between"><label className="text-sm font-medium">Generated Chunks</label><div className="text-xs text-muted-foreground">Hover to inspect</div></div>
-            <div className="rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/5">
-              <div className="mb-0 grid grid-cols-2 gap-3 border-b border-border/50 p-4 pb-3 lg:grid-cols-4">
-                <div className="rounded-md bg-muted px-3 py-2"><span className="text-xs font-medium text-muted-foreground">Chunks:</span><div className="text-sm font-semibold">{result?.chunks.length ?? 0}</div></div>
-                <div className="rounded-md bg-muted px-3 py-2"><span className="text-xs font-medium text-muted-foreground">Avg. Size:</span><div className="text-sm font-semibold">{averageChunkSize} chars</div></div>
-                <div className="rounded-md bg-muted px-3 py-2"><span className="text-xs font-medium text-muted-foreground">Chunk Size:</span><div className="text-sm font-semibold">{result?.chunk_size ?? chunkSize}</div></div>
-                <div className="rounded-md bg-muted px-3 py-2"><span className="text-xs font-medium text-muted-foreground">Avg. Overlap:</span><div className="text-sm font-semibold">{result?.chunk_overlap ?? chunkOverlap} chars</div></div>
-              </div>
-              <ScrollArea className="h-[620px] p-4">
+
+          <section className="split-workbench-panel split-workbench-panel-output">
+            <div className="split-stats-grid">
+              <div className="split-stat-card"><span className="split-stat-label">Chunks</span><div className="split-stat-value">{result?.chunks.length ?? 0}</div></div>
+              <div className="split-stat-card"><span className="split-stat-label">Avg. Size</span><div className="split-stat-value">{averageChunkSize}</div><div className="split-stat-unit">chars</div></div>
+              <div className="split-stat-card"><span className="split-stat-label">Chunk Size</span><div className="split-stat-value">{result?.chunk_size ?? chunkSize}</div></div>
+              <div className="split-stat-card"><span className="split-stat-label">Overlap</span><div className="split-stat-value">{result?.chunk_overlap ?? chunkOverlap}</div><div className="split-stat-unit">chars</div></div>
+            </div>
+            <div className="split-chunks-frame">
+              <ScrollArea className="h-[640px] p-4">
                 <div className="space-y-4">
-                  {result?.chunks?.length ? result.chunks.map((chunk, index) => <article key={chunk.index} onMouseEnter={() => handleChunkHover(index)} onMouseLeave={() => handleChunkHover(null)} className={index === hoveredChunkIndex ? "split-chunk split-chunk-hover" : index % 2 === 0 ? "split-chunk split-chunk-alt" : "split-chunk"}><div className="chunk-meta"><span>Chunk {chunk.index}</span><span>{chunk.word_count} words</span><span>{chunk.char_count} chars</span></div><p>{chunk.text}</p></article>) : <div className="flex min-h-[280px] items-center justify-center text-muted-foreground">Run the pipeline to see the chunk split output.</div>}
+                  {result?.chunks?.length ? result.chunks.map((chunk, index) => (
+                    <article
+                      key={chunk.index}
+                      onMouseEnter={() => handleChunkHover(index)}
+                      onMouseLeave={() => handleChunkHover(null)}
+                      className={index === hoveredChunkIndex ? "split-chunk split-chunk-hover" : index % 2 === 0 ? "split-chunk split-chunk-alt" : "split-chunk"}
+                    >
+                      <div className="chunk-meta"><span>Chunk {chunk.index}</span><span>{chunk.word_count} words</span><span>{chunk.char_count} chars</span></div>
+                      <p>{chunk.text}</p>
+                    </article>
+                  )) : <div className="flex min-h-[280px] items-center justify-center text-muted-foreground">Run the pipeline to see the chunk split output.</div>}
                 </div>
               </ScrollArea>
             </div>

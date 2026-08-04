@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
 
 export function Header() {
   return (
@@ -9,21 +8,9 @@ export function Header() {
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
             R
           </div>
-          <span className="text-xl font-semibold">RAG Play</span>
-        </Link>
-
-        <Link
-          href="https://github.com/Kain-90/RAG-Play"
-          target="_blank"
-          rel="noopener nofollow"
-          className="flex items-center space-x-2 text-foreground/60 transition-colors hover:text-foreground"
-          aria-label="View source on ExternalLink"
-        >
-          <ExternalLink className="h-6 w-6" />
+          <span className="text-xl font-semibold">RAG Lab</span>
         </Link>
       </div>
     </nav>
   );
 }
-
-

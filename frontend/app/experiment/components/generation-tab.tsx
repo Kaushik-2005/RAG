@@ -26,7 +26,7 @@ export function GenerationTab({ currentStage, loading, error, result, onRun }: P
   ];
 
   return (
-    <Card>
+    <Card className="border-0 bg-transparent shadow-none rounded-none">
       <CardHeader>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

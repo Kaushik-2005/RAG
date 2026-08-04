@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
+    --background: 0 0% 100%;
     --foreground: 222.2 47.4% 11.2%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 47.4% 11.2%;
@@ -68,14 +68,11 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    margin: 0;
-    font-family: Inter, Arial, Helvetica, sans-serif;
-    background:
-      radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 34%),
-      radial-gradient(circle at top right, rgba(20, 184, 166, 0.10), transparent 28%),
-      hsl(var(--background));
-  }
+  @apply bg-background text-foreground antialiased;
+  margin: 0;
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  background: #ffffff;
+}
 
   a {
     color: inherit;
@@ -338,4 +335,222 @@
   padding: 0.05rem 0.1rem;
   border-radius: 0.25rem;
   box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.55);
+}
+
+.split-controls-stack {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.split-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+}
+
+.split-controls-row-bottom {
+  padding-left: 0;
+}
+
+.split-inline-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.split-inline-control-strategy {
+  min-width: 0;
+}
+
+.split-inline-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: hsl(var(--foreground));
+  font-size: 0.95rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.split-inline-help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: help;
+}
+
+.split-inline-help-button:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.55);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+.split-inline-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #94a3b8;
+}
+
+.split-control-surface {
+  height: 3rem;
+}
+
+.split-control-select {
+  width: 320px;
+}
+
+.split-control-number {
+  width: 9.5rem;
+}
+
+.split-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.split-control-actions-inline {
+  margin-left: auto;
+}
+
+.split-control-button {
+  height: 3rem;
+  min-width: 9.5rem;
+}
+
+.split-workbench-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: end;
+}
+
+.split-workbench-head-left,
+.split-workbench-head-right {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.split-pane-kicker {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.split-pane-note {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.split-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.split-workbench-panel {
+  min-width: 0;
+}
+
+.split-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.split-stat-card {
+  display: grid;
+  gap: 0.3rem;
+  min-height: 96px;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.split-stat-label {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.split-stat-value {
+  color: hsl(var(--foreground));
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.split-stat-unit {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.split-chunks-frame {
+  border: 2px dashed rgba(148, 163, 184, 0.25);
+  border-radius: 0.95rem;
+  background: rgba(248, 250, 252, 0.28);
+  overflow: hidden;
+}
+
+.source-textarea.split-source-textarea,
+.split-source-textarea,
+.split-source-preview-text {
+  font-family: "Courier New", Courier, monospace;
+  line-height: 1.55;
+}
+
+.split-source-textarea {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+@media (max-width: 1180px) {
+  .split-controls-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .split-control-group,
+  .split-control-group-wide,
+  .split-control-actions {
+    grid-column: auto;
+  }
+
+  .split-workbench-head,
+  .split-workbench-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .split-workbench-head-left,
+  .split-workbench-head-right {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .split-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.stage-panel-shell {
+  margin-top: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #ffffff;
+  overflow: hidden;
 }
