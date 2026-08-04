@@ -1,32 +1,27 @@
 # RAG Lab
 
-RAG Lab is an open-source educational platform for learning retrieval-augmented generation.
+RAG Lab is an educational RAG playground inspired by RAG Play.
 
-The project is intentionally local-first and free-to-run by default:
+The app now runs with a frontend-first architecture:
 
-- no mandatory paid APIs
-- no mandatory cloud services
-- no Docker requirement for local development
-- free-tier external services are optional, not required
+- Next.js UI and browser-side pipeline logic
+- browser-side chunking, embeddings, and similarity search
+- a small Next.js server route for Groq generation
+- Vercel-friendly deployment with no separate backend required
 
-## Current status
+## Current architecture
 
-Milestone 1 foundation is being scaffolded:
-
-- FastAPI backend
-- Next.js frontend
-- shared API contract layer
-- local run scripts
-- docs and tooling
-
-## Repository layout
-
-- `backend/` — FastAPI application and tests
-- `frontend/` — Next.js application
-- `shared/` — shared contracts and types
+- `frontend/` — Next.js application, browser-side pipeline, and `/api/generate`
 - `docs/` — setup and architecture notes
-- `scripts/` — local run helpers
+- `scripts/` — local helpers
+- `shared/` — shared project assets if needed later
+
+## Environment
+
+For local development and Vercel deployment, set:
+
+- `GROQ_API_KEY`
 
 ## Local development
 
-See `docs/setup.md` for the exact setup commands.
+See `docs/setup.md`.

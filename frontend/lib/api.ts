@@ -1,5 +1,3 @@
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-
 export type Chunk = {
   index: number;
   text: string;
@@ -37,15 +35,20 @@ export type PipelineResponse = {
   retrieved_chunks: RetrievalMatch[];
 };
 
-export async function runPipeline(formData: FormData) {
-  const response = await fetch(`${apiBaseUrl}/api/v1/pipeline/run`, {
+export async function generateGroundedAnswer(input: { query: string; context: string; model?: string }) {
+  const response = await fetch("/api/generate", {
     method: "POST",
-    body: formData,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
   });
 
-  if (!response.ok) {
-    throw new Error(`Pipeline request failed: ${response.status}`);
+  const payload = (await response.json()) as { answer?: string; error?: string };
+
+  if (!response.ok || !payload.answer) {
+    throw new Error(payload.error ?? `Generation request failed: ${response.status}`);
   }
 
-  return response.json() as Promise<PipelineResponse>;
+  return payload.answer;
 }

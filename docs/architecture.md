@@ -2,22 +2,24 @@
 
 ## Core shape
 
-`Next.js UI -> FastAPI -> pipeline services -> retrieval and generation`
+`Next.js UI -> browser-side pipeline -> /api/generate -> Groq`
 
-## Milestone 1 scope
+## What runs in the browser
 
-The first milestone only establishes the foundation:
+- text splitting
+- local embedding generation
+- similarity scoring
+- retrieval ranking
+- 2D projection for charts
+- prompt context assembly
 
-- API health check
-- shared contracts
-- frontend shell
-- backend shell
-- local development workflow
+## What runs on the server
 
-## Cost policy
+- Groq chat completion call from the Next.js route handler
 
-The application is intended to stay free-to-run by default.
+## Why this shape
 
-- Prefer local open-source components.
-- Use free-tier APIs only when needed.
-- Avoid paid APIs and mandatory cloud infrastructure.
+- simple Vercel deployment
+- no separate backend host
+- no heavy Python or ML runtime in serverless functions
+- keeps the educational pipeline interactive and easy to inspect

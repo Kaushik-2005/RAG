@@ -5,7 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Boxes, MessageSquare, Search, SplitSquareHorizontal } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { runPipeline, type PipelineResponse } from "@/lib/api";
+import { generateGroundedAnswer, type PipelineResponse } from "@/lib/api";
+import { runLocalPipeline } from "@/lib/pipeline";
 import { embedTo2D } from "@/lib/utils";
 import { EmbeddingTab } from "./embedding-tab";
 import { GenerationTab } from "./generation-tab";
@@ -29,7 +30,7 @@ export const stageTabs = [
     title: "Vector Embedding",
     description: "View the chunks and their vector embeddings side by side before any query-time retrieval happens.",
     explanation:
-      "This stage only changes the embedding model. The output shows the chunk text and the vectors produced from that text.",
+      "This stage only changes the browser-side embedding strategy. The output shows the chunk text and the vectors produced from that text.",
   },
   {
     id: "semantic-search",
@@ -52,21 +53,21 @@ export const stageTabs = [
 ] as const;
 
 export const chunkerOptions = [
-  { value: "recursive", label: "Recursive", description: "Preserves natural boundaries first, then falls back to smaller separators when needed." },
-  { value: "character", label: "Fixed Character", description: "Splits at a fixed length. Fast and simple, but less aware of sentence meaning." },
-  { value: "token", label: "Token Aware", description: "Splits by approximate token budget so chunks align better with model context windows." },
-  { value: "markdown", label: "Markdown", description: "Uses headings and markdown structure first so sections stay grouped logically." },
+  { value: "character", label: "Fixed Character", description: "Simple uniform segmentation based on predetermined character length. Best for fast iteration and low-overhead demos." },
+  { value: "recursive", label: "Recursive Character", description: "Preserves paragraph and sentence boundaries first, then falls back to smaller separators when needed." },
+  { value: "token", label: "Token Aware", description: "Uses word-like boundaries while keeping chunks within an approximate browser-friendly budget." },
+  { value: "markdown", label: "Markdown Structure", description: "Uses headings and markdown structure first so sections stay grouped logically." },
 ] as const;
 
 export const embeddingOptions = [
-  { value: "tfidf", label: "TF-IDF" },
-  { value: "all-MiniLM-L6-v2", label: "all-MiniLM-L6-v2" },
-  { value: "paraphrase-MiniLM-L3-v2", label: "paraphrase-MiniLM-L3-v2" },
+  { value: "tfidf", label: "TF-IDF (Browser)" },
+  { value: "hashing-384", label: "Hashing 384d (Browser)" },
+  { value: "chargram-384", label: "Char N-grams 384d (Browser)" },
 ] as const;
 
 export const vectorStoreOptions = [
-  { value: "faiss", label: "FAISS" },
-  { value: "chroma", label: "Cosine fallback" },
+  { value: "cosine", label: "Cosine Similarity" },
+  { value: "dot", label: "Dot Product" },
 ] as const;
 
 export const defaultSourceText = `What is Retrieval-Augmented Generation?
@@ -141,8 +142,8 @@ export function ExperimentContent() {
   const [chunker, setChunker] = useState<ChunkerValue>("recursive");
   const [chunkSize, setChunkSize] = useState(500);
   const [chunkOverlap, setChunkOverlap] = useState(50);
-  const [embeddingModel, setEmbeddingModel] = useState<EmbeddingValue>("all-MiniLM-L6-v2");
-  const [vectorStore, setVectorStore] = useState<VectorStoreValue>("faiss");
+  const [embeddingModel, setEmbeddingModel] = useState<EmbeddingValue>("tfidf");
+  const [vectorStore, setVectorStore] = useState<VectorStoreValue>("cosine");
   const [topK, setTopK] = useState(3);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,19 +200,33 @@ export function ExperimentContent() {
     event?.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
-      const formData = new FormData();
-      formData.append("query", query);
-      formData.append("source_text", sourceText);
-      formData.append("source_title", "Editable source paragraph");
-      formData.append("chunker", chunker);
-      formData.append("chunk_size", String(chunkSize));
-      formData.append("chunk_overlap", String(chunkOverlap));
-      formData.append("embedding_model", embeddingModel);
-      formData.append("vector_store", vectorStore);
-      formData.append("top_k", String(topK));
-      const response = await runPipeline(formData);
-      setResult(response);
+      const nextResult = runLocalPipeline({
+        query,
+        sourceText,
+        sourceTitle: "Editable source paragraph",
+        chunker,
+        chunkSize,
+        chunkOverlap,
+        embeddingModel,
+        vectorStore,
+        topK,
+      });
+
+      if (activeStep === "generation") {
+        if (!nextResult.context.trim()) {
+          setResult({ ...nextResult, answer: "I do not know based on the provided context." });
+        } else {
+          const answer = await generateGroundedAnswer({
+            query: nextResult.query,
+            context: nextResult.context,
+          });
+          setResult({ ...nextResult, answer });
+        }
+      } else {
+        setResult(nextResult);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Pipeline request failed.");
     } finally {

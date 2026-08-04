@@ -1,25 +1,28 @@
 # Local Setup
 
-This project is designed to run locally without Docker.
+This project runs as a single Next.js app.
 
-## Backend
+## Requirements
 
-1. Create a virtual environment.
-2. Install backend dependencies from `backend/`.
-3. Change into `backend/`.
-4. Run the API with `uvicorn app.main:app --reload`.
+- Node.js 20+
+- npm
+- Groq API key
 
-## Frontend
+## Run locally
 
-1. Install frontend dependencies from `frontend/`.
-2. Change into `frontend/`.
-3. Run the app with `npm run dev`.
+1. Change into `frontend/`.
+2. Install dependencies with `npm install`.
+3. Create `frontend/.env.local`.
+4. Add:
+   - `GROQ_API_KEY=your_key`
+5. Start the app with `npm run dev`.
 
-## Environment
+## Notes
 
-- Copy `backend/.env.example` to `backend/.env` if you want to override backend defaults.
-- Copy `frontend/.env.example` to `frontend/.env.local` if you want to override the backend URL.
+- Chunking, embeddings, retrieval, and visualization run in the browser.
+- Only final answer generation uses the server route at `/api/generate`.
+- No Python backend or Docker setup is required.
 
-## Recommended next step
+## Deployment
 
-Start the backend first, then the frontend.
+Deploy `frontend/` to Vercel and add `GROQ_API_KEY` in the Vercel project environment variables.
