@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleHelp } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +56,7 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
   const colorMap: Record<ChunkerValue, string> = { character: "split-dot-blue", recursive: "split-dot-green", token: "split-dot-purple", markdown: "split-dot-amber" };
   const [hoveredChunkIndex, setHoveredChunkIndex] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const previewPaneRef = useRef<HTMLDivElement | null>(null);
 
   const highlightedSourceHtml = useMemo(() => {
     if (hoveredChunkIndex === null || !result?.chunks?.[hoveredChunkIndex]) return null;
@@ -65,6 +66,21 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
     const after = escapeHtml(sourceText.slice(chunk.end_char));
     return `${before}<mark class="split-source-highlight">${current}</mark>${after}`.replace(/\n/g, "<br />");
   }, [hoveredChunkIndex, result, sourceText]);
+  useEffect(() => {
+    if (hoveredChunkIndex === null) return;
+    const pane = previewPaneRef.current;
+    if (!pane) return;
+
+    const highlight = pane.querySelector(".split-source-highlight") as HTMLElement | null;
+    if (!highlight) return;
+
+    const paneRect = pane.getBoundingClientRect();
+    const highlightRect = highlight.getBoundingClientRect();
+    const offsetTop = highlightRect.top - paneRect.top + pane.scrollTop;
+    const targetTop = Math.max(0, offsetTop - pane.clientHeight / 3);
+
+    pane.scrollTo({ top: targetTop, behavior: "smooth" });
+  }, [hoveredChunkIndex, highlightedSourceHtml]);
 
   const handleChunkHover = (index: number | null) => {
     setHoveredChunkIndex(index);
@@ -144,7 +160,7 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
           <section className="split-workbench-panel split-workbench-panel-source">
             <label className="sr-only" htmlFor="source-paragraph">Source paragraph</label>
             {highlightedSourceHtml ? (
-              <div className="split-source-preview-pane">
+              <div ref={previewPaneRef} className="split-source-preview-pane">
                 <div className="split-source-preview-text" dangerouslySetInnerHTML={{ __html: highlightedSourceHtml }} />
               </div>
             ) : (
