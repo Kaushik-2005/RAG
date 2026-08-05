@@ -10,6 +10,11 @@ export function Header() {
           </div>
           <span className="text-xl font-semibold">RAG Lab</span>
         </Link>
+        <div className="flex items-center gap-6 text-sm font-medium text-muted-foreground">
+          <Link className="transition-colors hover:text-foreground" href="/">Home</Link>
+          <Link className="transition-colors hover:text-foreground" href="/experiment">Experiment</Link>
+          <Link className="transition-colors hover:text-foreground" href="/contact">Contact</Link>
+        </div>
       </div>
     </nav>
   );
