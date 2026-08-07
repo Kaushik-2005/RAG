@@ -160,23 +160,23 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
           <section className="split-workbench-panel split-workbench-panel-source">
             <label className="sr-only" htmlFor="source-paragraph">Source paragraph</label>
             {highlightedSourceHtml ? (
-              <div ref={previewPaneRef} className="split-source-preview-pane">
+              <div ref={previewPaneRef} className="split-source-preview-pane no-visible-scrollbar">
                 <div className="split-source-preview-text" dangerouslySetInnerHTML={{ __html: highlightedSourceHtml }} />
               </div>
             ) : (
-              <Textarea id="source-paragraph" ref={textareaRef} value={sourceText} onChange={(event) => setSourceText(event.target.value)} className="split-source-textarea min-h-[640px] resize-y border-2 border-dashed border-muted-foreground/25 text-base leading-relaxed" />
+              <Textarea id="source-paragraph" ref={textareaRef} value={sourceText} onChange={(event) => setSourceText(event.target.value)} className="split-source-textarea min-h-[640px] resize-y border-2 border-dashed border-muted-foreground/25 text-base leading-relaxed no-visible-scrollbar" />
             )}
           </section>
 
           <section className="split-workbench-panel split-workbench-panel-output">
-            <div className="split-stats-grid">
-              <div className="split-stat-card"><span className="split-stat-label">Chunks</span><div className="split-stat-value">{result?.chunks.length ?? 0}</div></div>
-              <div className="split-stat-card"><span className="split-stat-label">Avg. Size</span><div className="split-stat-value">{averageChunkSize}</div><div className="split-stat-unit">chars</div></div>
-              <div className="split-stat-card"><span className="split-stat-label">Chunk Size</span><div className="split-stat-value">{result?.chunk_size ?? chunkSize}</div></div>
-              <div className="split-stat-card"><span className="split-stat-label">Overlap</span><div className="split-stat-value">{result?.chunk_overlap ?? chunkOverlap}</div><div className="split-stat-unit">chars</div></div>
-            </div>
-            <div className="split-chunks-frame">
-              <ScrollArea className="h-[640px] p-4">
+            <div className="split-chunks-frame flex h-[640px] flex-col p-4">
+              <div className="split-stats-grid mb-4">
+                <div className="split-stat-card"><span className="split-stat-label">Chunks</span><div className="split-stat-value">{result?.chunks.length ?? 0}</div></div>
+                <div className="split-stat-card"><span className="split-stat-label">Avg. Size</span><div className="split-stat-value">{averageChunkSize}</div><div className="split-stat-unit">chars</div></div>
+                <div className="split-stat-card"><span className="split-stat-label">Chunk Size</span><div className="split-stat-value">{result?.chunk_size ?? chunkSize}</div></div>
+                <div className="split-stat-card"><span className="split-stat-label">Overlap</span><div className="split-stat-value">{result?.chunk_overlap ?? chunkOverlap}</div><div className="split-stat-unit">chars</div></div>
+              </div>
+              <ScrollArea hideScrollbar className="min-h-0 flex-1 pr-1">
                 <div className="space-y-4">
                   {result?.chunks?.length ? result.chunks.map((chunk, index) => (
                     <article

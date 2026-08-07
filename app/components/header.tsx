@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
+
 const repositoryUrl = "https://github.com/Kaushik-2005/RAG";
 
 function GitHubMark() {
@@ -20,11 +22,11 @@ export function Header() {
           </div>
           <span className="text-xl font-semibold">RAG Lab</span>
         </Link>
-        <div className="flex items-center gap-6 text-sm font-medium text-muted-foreground">
+        <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground sm:gap-6">
           <Link className="transition-colors hover:text-foreground" href="/">Home</Link>
           <Link className="transition-colors hover:text-foreground" href="/experiment">Experiment</Link>
           <Link className="transition-colors hover:text-foreground" href="/contact">Contact</Link>
-          <Link
+          {/* <Link
             className="transition-colors hover:text-foreground"
             href={repositoryUrl}
             target="_blank"
@@ -32,7 +34,8 @@ export function Header() {
             aria-label="Open GitHub repository"
           >
             <GitHubMark />
-          </Link>
+          </Link> */}
+          <ThemeToggle />
         </div>
       </div>
     </nav>

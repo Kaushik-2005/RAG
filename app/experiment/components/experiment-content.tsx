@@ -236,11 +236,11 @@ export function ExperimentContent() {
 
   return (
     <Tabs value={activeStep} onValueChange={handleStepChange} className="space-y-4">
-      <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-[#f5f5f5] md:grid-cols-4">
-        <TabsTrigger value="text-splitting" className="space-x-2"><SplitSquareHorizontal className="h-4 w-4" /><span>Text Splitting</span></TabsTrigger>
-        <TabsTrigger value="embedding" className="space-x-2"><Boxes className="h-4 w-4" /><span>Vector Embedding</span></TabsTrigger>
-        <TabsTrigger value="semantic-search" className="space-x-2"><Search className="h-4 w-4" /><span>Semantic Search</span></TabsTrigger>
-        <TabsTrigger value="generation" className="space-x-2"><MessageSquare className="h-4 w-4" /><span>Context Generation</span></TabsTrigger>
+      <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl border border-[#ececec] bg-[#f5f5f5] p-1 dark:border-[#2a2a2a] dark:bg-[#151515] md:grid-cols-4">
+        <TabsTrigger value="text-splitting" className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none"><SplitSquareHorizontal className="h-4 w-4" /><span>Text Splitting</span></TabsTrigger>
+        <TabsTrigger value="embedding" className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none"><Boxes className="h-4 w-4" /><span>Vector Embedding</span></TabsTrigger>
+        <TabsTrigger value="semantic-search" className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none"><Search className="h-4 w-4" /><span>Semantic Search</span></TabsTrigger>
+        <TabsTrigger value="generation" className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none"><MessageSquare className="h-4 w-4" /><span>Context Generation</span></TabsTrigger>
       </TabsList>
       <TabsContent value="text-splitting" className="stage-panel-shell" forceMount><TextSplittingTab currentStage={currentStage} sourceText={sourceText} setSourceText={setSourceText} chunker={chunker} setChunker={setChunker} chunkSize={chunkSize} setChunkSize={setChunkSize} chunkOverlap={chunkOverlap} setChunkOverlap={setChunkOverlap} loading={loading} error={error} result={result} onRun={handleRun} /></TabsContent>
       <TabsContent value="embedding" className="stage-panel-shell" forceMount><EmbeddingTab currentStage={currentStage} embeddingModel={embeddingModel} setEmbeddingModel={setEmbeddingModel} loading={loading} error={error} result={result} points={chunkEmbeddingPoints} onRun={handleRun} /></TabsContent>

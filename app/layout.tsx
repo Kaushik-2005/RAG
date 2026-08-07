@@ -3,6 +3,7 @@ import "github-markdown-css/github-markdown.css";
 import "./globals.css";
 
 import { Footer } from "@/app/components/footer";
+import { ThemeProvider } from "@/components/theme-provider";
 import { Header } from "@/app/components/header";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -13,12 +14,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <Header />
-        {children}
-        <Footer />
-        <Toaster />
+        <ThemeProvider>
+          <Header />
+          {children}
+          <Footer />
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

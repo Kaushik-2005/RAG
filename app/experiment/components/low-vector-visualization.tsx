@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTheme } from "next-themes";
 import { Scatter } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -47,6 +48,7 @@ const nearestNeighborsPlugin: Plugin<"scatter"> = {
 
     const query = queryDataset.data[0] as VectorPoint;
     const vectors = vectorsDataset.data as VectorPoint[];
+    const isDark = document.documentElement.classList.contains("dark");
 
     const nearestPoints = vectors
       .map((point) => ({
@@ -57,7 +59,7 @@ const nearestNeighborsPlugin: Plugin<"scatter"> = {
       .slice(0, 5);
 
     ctx.save();
-    ctx.strokeStyle = "rgba(128, 128, 128, 0.7)";
+    ctx.strokeStyle = isDark ? "rgba(163, 163, 163, 0.7)" : "rgba(128, 128, 128, 0.7)";
     ctx.lineWidth = 2;
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
@@ -79,6 +81,9 @@ const nearestNeighborsPlugin: Plugin<"scatter"> = {
 ChartJS.register(LinearScale, PointElement, LineElement, Tooltip, Legend, Title, nearestNeighborsPlugin);
 
 export default function LowVectorVisualization({ data, query, title = "Low Vector Visualization", datasetLabel = "Vectors", queryLabel = "Query", className }: Props) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
   const chartData = useMemo<ChartData<"scatter", VectorPoint[], unknown>>(() => {
     const datasets: ChartDataset<"scatter", VectorPoint[]>[] = [
       {
@@ -89,7 +94,7 @@ export default function LowVectorVisualization({ data, query, title = "Low Vecto
           title: point.title,
           details: point.details,
         })),
-        backgroundColor: "rgba(75, 192, 192, 0.6)",
+        backgroundColor: isDark ? "rgba(212, 212, 212, 0.72)" : "rgba(75, 192, 192, 0.6)",
         pointRadius: 6,
         pointHoverRadius: 8,
       },
@@ -99,21 +104,24 @@ export default function LowVectorVisualization({ data, query, title = "Low Vecto
       datasets.push({
         label: queryLabel,
         data: [{ x: query.x, y: query.y, title: query.title, details: query.details }],
-        backgroundColor: "rgba(255, 99, 132, 0.85)",
+        backgroundColor: isDark ? "rgba(239, 68, 68, 0.95)" : "rgba(255, 99, 132, 0.85)",
         pointRadius: 8,
         pointHoverRadius: 10,
       });
     }
 
     return { datasets };
-  }, [data, query, datasetLabel, queryLabel]);
+  }, [data, query, datasetLabel, queryLabel, isDark]);
 
   const options: ChartOptions<"scatter"> & { plugins: { nearestNeighbors: { enabled: boolean } } } = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: "top" as const },
-      title: { display: true, text: title },
+      legend: {
+        position: "top" as const,
+        labels: { color: isDark ? "#f5f5f5" : "#0f172a" },
+      },
+      title: { display: true, text: title, color: isDark ? "#f5f5f5" : "#0f172a" },
       tooltip: {
         callbacks: {
           label: (context: TooltipItem<"scatter">) => {
@@ -129,13 +137,29 @@ export default function LowVectorVisualization({ data, query, title = "Low Vecto
       nearestNeighbors: { enabled: true },
     },
     scales: {
-      x: { grid: { display: true, color: "rgba(0, 0, 0, 0.1)" }, title: { display: true, text: "X Axis" } },
-      y: { grid: { display: true, color: "rgba(0, 0, 0, 0.1)" }, title: { display: true, text: "Y Axis" } },
+      x: {
+        grid: { display: true, color: isDark ? "rgba(82, 82, 82, 0.35)" : "rgba(0, 0, 0, 0.1)" },
+        ticks: { color: isDark ? "#d4d4d4" : "#334155" },
+        title: { display: true, text: "X Axis", color: isDark ? "#d4d4d4" : "#334155" },
+      },
+      y: {
+        grid: { display: true, color: isDark ? "rgba(82, 82, 82, 0.35)" : "rgba(0, 0, 0, 0.1)" },
+        ticks: { color: isDark ? "#d4d4d4" : "#334155" },
+        title: { display: true, text: "Y Axis", color: isDark ? "#d4d4d4" : "#334155" },
+      },
     },
   };
 
   return (
-    <div className={cn("relative rounded-lg border border-gray-200 bg-white p-4 shadow-sm", className)} role="region" aria-label={`${title} scatter plot`}>
+    <div
+      className={cn(
+        "relative rounded-lg border p-4 shadow-sm",
+        isDark ? "border-neutral-800 bg-black text-neutral-100" : "border-gray-200 bg-white",
+        className,
+      )}
+      role="region"
+      aria-label={`${title} scatter plot`}
+    >
       <Scatter options={options} data={chartData} />
     </div>
   );

@@ -69,7 +69,7 @@ function FeatureCard({ feature }: { feature: (typeof features)[0] }) {
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-transparent to-primary/5 opacity-0 transition-opacity group-hover:opacity-100" />
       <div className="mb-4 inline-flex rounded-full bg-primary/10 p-3">{feature.icon}</div>
       <h2 className="mb-3 text-lg font-bold">{feature.title}</h2>
-      <p className="line-clamp-4 text-sm text-gray-500 dark:text-gray-400">{feature.description}</p>
+      <p className="line-clamp-4 text-sm text-muted-foreground">{feature.description}</p>
     </Link>
   );
 }
@@ -81,7 +81,7 @@ export default function Home() {
         <div className="flex flex-col items-center justify-center space-y-8 text-center">
           <div className="space-y-4">
             <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">Interactive RAG Lab</h1>
-            <p className="mx-auto max-w-[760px] text-gray-500 dark:text-gray-400 md:text-xl">
+            <p className="mx-auto max-w-[760px] text-muted-foreground md:text-xl">
               Debug, visualize, and understand Retrieval-Augmented Generation through a frontend-first interactive lab.
             </p>
           </div>
