@@ -6,12 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PipelineResponse } from "@/lib/api";
-import { chunkerOptions, defaultSourceText, type ChunkerValue, stageTabs } from "./experiment-content";
+import { chunkerOptions, chunkerPresets, defaultSourceText, type ChunkerValue, stageTabs } from "./experiment-content";
 
 type StageMeta = (typeof stageTabs)[number];
 
@@ -52,8 +51,35 @@ const LabelWithInfo = ({ label, hint }: { label: string; hint: string }) => (
 );
 
 export function TextSplittingTab({ currentStage, sourceText, setSourceText, chunker, setChunker, chunkSize, setChunkSize, chunkOverlap, setChunkOverlap, loading, error, result, onRun }: Props) {
-  const averageChunkSize = result?.chunks.length ? Math.round(result.chunks.reduce((sum, chunk) => sum + chunk.char_count, 0) / result.chunks.length) : 0;
-  const colorMap: Record<ChunkerValue, string> = { character: "split-dot-blue", recursive: "split-dot-green", token: "split-dot-purple", markdown: "split-dot-amber" };
+  const averageChunkSize = result?.chunks.length
+    ? Math.round(
+      result.chunks.reduce(
+        (sum, chunk) => sum + (chunker === "token" ? (chunk.token_count ?? 0) : chunk.char_count),
+        0,
+      ) / result.chunks.length,
+    )
+    : 0;
+  const sizeUnitLabel = chunker === "token" ? "tokens" : "chars";
+  const chunkSizeLabel = chunker === "token" ? "Chunk Size (tokens):" : "Chunk Size:";
+  const overlapSizeLabel = chunker === "token" ? "Overlap Size (tokens):" : "Overlap Size:";
+  const chunkSizeHint = chunker === "token"
+    ? "Maximum target size for each chunk in tokens when using the token-aware splitter."
+    : "Maximum target size for each chunk in characters.";
+  const overlapSizeHint = chunker === "token"
+    ? "Tokens repeated between neighboring chunks to preserve continuity when using the token-aware splitter."
+    : "Characters repeated between neighboring chunks to preserve continuity.";
+  const tokenModeGuidance = chunker === "token" && result?.chunks.length === 1 && (result.chunks[0]?.token_count ?? 0) <= chunkSize
+    ? `This paragraph is about ${result.chunks[0]?.token_count ?? 0} tokens, so it still fits inside the current ${chunkSize}-token budget. Reduce chunk size to see multiple token-based chunks.`
+    : null;
+  const recommendedPreset = chunkerPresets[chunker];
+
+  const colorMap: Record<ChunkerValue, string> = {
+    character: "split-dot-blue",
+    recursive: "split-dot-green",
+    token: "split-dot-purple",
+    markdown: "split-dot-amber",
+  };
+
   const [hoveredChunkIndex, setHoveredChunkIndex] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previewPaneRef = useRef<HTMLDivElement | null>(null);
@@ -66,6 +92,7 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
     const after = escapeHtml(sourceText.slice(chunk.end_char));
     return `${before}<mark class="split-source-highlight">${current}</mark>${after}`.replace(/\n/g, "<br />");
   }, [hoveredChunkIndex, result, sourceText]);
+
   useEffect(() => {
     if (hoveredChunkIndex === null) return;
     const pane = previewPaneRef.current;
@@ -95,7 +122,7 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
   };
 
   return (
-    <Card className="border-0 bg-transparent shadow-none rounded-none">
+    <Card className="rounded-none border-0 bg-transparent shadow-none">
       <CardHeader>
         <CardTitle>{currentStage.title}</CardTitle>
         <CardDescription>{currentStage.description}</CardDescription>
@@ -107,7 +134,9 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
             </li>
           ))}
         </ul>
-        <blockquote className="split-warning">When merging and splitting segments, some segments themselves exceed the chunk size in length, or the splitting logic causes the combined length to exceed the set value, resulting in over-limit chunks.</blockquote>
+        <blockquote className="split-warning">
+          The splitters now run through LangChain JS. Character, recursive, markdown, and token modes are real splitter implementations. In token mode, chunk size and overlap are interpreted as tokens instead of characters. Switching modes also loads a recommended preset for that splitter.
+        </blockquote>
       </CardHeader>
       <CardContent className="space-y-6">
         <form className="space-y-3" onSubmit={onRun}>
@@ -115,14 +144,19 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
             <div className="split-controls-row split-controls-row-top">
               <div className="split-inline-control split-inline-control-strategy">
                 <LabelWithInfo label="Split Strategy:" hint="Choose how the source text is broken into chunks." />
-                <Select value={chunker} onValueChange={(value) => setChunker(value as ChunkerValue)}>
-                  <SelectTrigger className="split-control-surface split-control-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {chunkerOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Select value={chunker} onValueChange={(value) => setChunker(value as ChunkerValue)}>
+                    <SelectTrigger className="split-control-surface split-control-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {chunkerOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Recommended preset: {recommendedPreset.chunkSize} {chunker === "token" ? "tokens" : "chars"} / {recommendedPreset.chunkOverlap} {chunker === "token" ? "token" : "char"} overlap
+                  </p>
+                </div>
               </div>
 
               <div className="split-control-actions split-control-actions-inline">
@@ -133,23 +167,25 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
 
             <div className="split-controls-row split-controls-row-bottom">
               <div className="split-inline-control">
-                <LabelWithInfo label="Chunk Size:" hint="Maximum target size for each chunk in characters." />
+                <LabelWithInfo label={chunkSizeLabel} hint={chunkSizeHint} />
                 <Input type="number" min={32} max={4000} value={chunkSize} onChange={(event) => setChunkSize(Number(event.target.value))} className="split-control-surface split-control-number" />
               </div>
 
               <div className="split-inline-control">
-                <LabelWithInfo label="Overlap Size:" hint="Characters repeated between neighboring chunks to preserve continuity." />
+                <LabelWithInfo label={overlapSizeLabel} hint={overlapSizeHint} />
                 <Input type="number" min={0} max={2000} value={chunkOverlap} onChange={(event) => setChunkOverlap(Number(event.target.value))} className="split-control-surface split-control-number" />
               </div>
             </div>
           </div>
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {tokenModeGuidance ? <p className="text-sm text-muted-foreground">{tokenModeGuidance}</p> : null}
         </form>
 
         <div className="split-workbench-head split-workbench-head-simple">
           <div className="split-workbench-head-left">
             <span className="split-pane-kicker">Source Document</span>
+            <span className="split-pane-note">Splitter backend: LangChain JS</span>
           </div>
           <div className="split-workbench-head-right">
             <span className="split-pane-kicker">Generated Chunks</span>
@@ -172,11 +208,11 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
             <div className="split-chunks-frame flex h-[640px] flex-col p-4">
               <div className="split-stats-grid mb-4">
                 <div className="split-stat-card"><span className="split-stat-label">Chunks</span><div className="split-stat-value">{result?.chunks.length ?? 0}</div></div>
-                <div className="split-stat-card"><span className="split-stat-label">Avg. Size</span><div className="split-stat-value">{averageChunkSize}</div><div className="split-stat-unit">chars</div></div>
+                <div className="split-stat-card"><span className="split-stat-label">Avg. Size</span><div className="split-stat-value">{averageChunkSize}</div><div className="split-stat-unit">{sizeUnitLabel}</div></div>
                 <div className="split-stat-card"><span className="split-stat-label">Chunk Size</span><div className="split-stat-value">{result?.chunk_size ?? chunkSize}</div></div>
-                <div className="split-stat-card"><span className="split-stat-label">Overlap</span><div className="split-stat-value">{result?.chunk_overlap ?? chunkOverlap}</div><div className="split-stat-unit">chars</div></div>
+                <div className="split-stat-card"><span className="split-stat-label">Overlap</span><div className="split-stat-value">{result?.chunk_overlap ?? chunkOverlap}</div><div className="split-stat-unit">{sizeUnitLabel}</div></div>
               </div>
-              <ScrollArea hideScrollbar className="min-h-0 flex-1 pr-1">
+              <div className="no-visible-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
                 <div className="space-y-4">
                   {result?.chunks?.length ? result.chunks.map((chunk, index) => (
                     <article
@@ -185,12 +221,16 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
                       onMouseLeave={() => handleChunkHover(null)}
                       className={index === hoveredChunkIndex ? "split-chunk split-chunk-hover" : index % 2 === 0 ? "split-chunk split-chunk-alt" : "split-chunk"}
                     >
-                      <div className="chunk-meta"><span>Chunk {chunk.index}</span><span>{chunk.word_count} words</span><span>{chunk.char_count} chars</span></div>
+                      <div className="chunk-meta">
+                        <span>Chunk {chunk.index}</span>
+                        {chunker === "token" ? <span>{chunk.token_count ?? 0} tokens</span> : <span>{chunk.word_count} words</span>}
+                        <span>{chunk.char_count} chars</span>
+                      </div>
                       <p>{chunk.text}</p>
                     </article>
                   )) : <div className="flex min-h-[280px] items-center justify-center text-muted-foreground">Run the pipeline to see the chunk split output.</div>}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           </section>
         </div>

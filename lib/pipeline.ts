@@ -1,3 +1,11 @@
+import {
+  CharacterTextSplitter,
+  MarkdownTextSplitter,
+  RecursiveCharacterTextSplitter,
+  TokenTextSplitter,
+} from "@langchain/textsplitters";
+import { getEncoding } from "js-tiktoken";
+
 import type { Chunk, PipelineResponse, RetrievalMatch } from "@/lib/api";
 import type { ChunkerValue, EmbeddingValue, VectorStoreValue } from "@/app/experiment/components/experiment-content";
 
@@ -36,12 +44,14 @@ const TOKEN_PATTERN = /[a-z0-9]+(?:'[a-z0-9]+)?/gi;
 const MAX_TFIDF_VOCAB = 384;
 const HASHING_DIMENSIONS = 384;
 const CHARGRAM_DIMENSIONS = 384;
+const CL100K = getEncoding("cl100k_base");
 
 const normalizeSource = (value: string) => value.replace(/\r\n/g, "\n").trim();
 
 const tokenizeWords = (value: string) => value.toLowerCase().match(TOKEN_PATTERN) ?? [];
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const countTokens = (value: string) => CL100K.encode(value).length;
 
 const l2Normalize = (vector: number[]) => {
   const magnitude = Math.sqrt(vector.reduce((sum, current) => sum + current * current, 0));
@@ -65,134 +75,93 @@ const cosineSimilarity = (left: number[], right: number[]) => {
   return dotProduct(left, right) / (leftMagnitude * rightMagnitude);
 };
 
-const finalizeChunk = (sourceText: string, start: number, end: number, index: number): Chunk | null => {
-  let adjustedStart = start;
-  let adjustedEnd = end;
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  while (adjustedStart < adjustedEnd && /\s/.test(sourceText[adjustedStart])) adjustedStart += 1;
-  while (adjustedEnd > adjustedStart && /\s/.test(sourceText[adjustedEnd - 1])) adjustedEnd -= 1;
-
-  if (adjustedEnd <= adjustedStart) return null;
-
-  const text = sourceText.slice(adjustedStart, adjustedEnd);
-  return {
-    index,
-    text,
-    char_count: text.length,
-    word_count: tokenizeWords(text).length,
-    start_char: adjustedStart,
-    end_char: adjustedEnd,
-  };
+const fallbackLocateChunk = (sourceText: string, chunkText: string, searchStart: number) => {
+  const compactChunk = chunkText.replace(/\s+/g, "\\s+");
+  const pattern = new RegExp(escapeRegExp(compactChunk).replace(/\\\\s\+/g, "\\s+"), "g");
+  pattern.lastIndex = searchStart;
+  const match = pattern.exec(sourceText);
+  return match ? match.index : -1;
 };
 
-const findBoundary = (sourceText: string, start: number, target: number, separators: string[]) => {
-  const minWindow = Math.max(start + 1, start + Math.floor((target - start) * 0.55));
-  let bestBoundary = -1;
-
-  for (const separator of separators) {
-    const boundaryIndex = sourceText.lastIndexOf(separator, target);
-    if (boundaryIndex >= minWindow) {
-      bestBoundary = Math.max(bestBoundary, boundaryIndex + separator.length);
-    }
-  }
-
-  if (bestBoundary > start) return bestBoundary;
-
-  const forwardLimit = Math.min(sourceText.length, target + 80);
-  for (const separator of separators) {
-    const forwardIndex = sourceText.indexOf(separator, target);
-    if (forwardIndex !== -1 && forwardIndex + separator.length <= forwardLimit) {
-      return forwardIndex + separator.length;
-    }
-  }
-
-  return Math.min(target, sourceText.length);
-};
-
-const buildWindowChunks = (sourceText: string, chunkSize: number, chunkOverlap: number, separators: string[]) => {
+const mapChunkTextsToChunks = (sourceText: string, chunkTexts: string[], chunkOverlap: number): Chunk[] => {
   const chunks: Chunk[] = [];
-  const safeChunkSize = clamp(chunkSize, 32, Math.max(32, sourceText.length || 32));
-  const safeOverlap = clamp(chunkOverlap, 0, Math.max(0, safeChunkSize - 1));
-  let start = 0;
-  let chunkIndex = 0;
+  const overlapWindow = Math.max(0, chunkOverlap) + 256;
+  let cursor = 0;
 
-  while (start < sourceText.length) {
-    const target = Math.min(sourceText.length, start + safeChunkSize);
-    let end = target;
+  for (const [index, rawText] of chunkTexts.entries()) {
+    const text = rawText.trim();
+    if (!text) continue;
 
-    if (target < sourceText.length && separators.length) {
-      end = findBoundary(sourceText, start, target, separators);
+    const preferredStart = Math.max(0, cursor - overlapWindow);
+    let start = sourceText.indexOf(text, preferredStart);
+
+    if (start === -1) {
+      start = sourceText.indexOf(text);
     }
 
-    if (end <= start) {
-      end = Math.min(sourceText.length, start + safeChunkSize);
+    if (start === -1) {
+      start = fallbackLocateChunk(sourceText, text, preferredStart);
     }
 
-    const chunk = finalizeChunk(sourceText, start, end, chunkIndex);
-    if (chunk) {
-      chunks.push(chunk);
-      chunkIndex += 1;
-      if (chunk.end_char >= sourceText.length) break;
-      start = Math.max(chunk.end_char - safeOverlap, start + 1);
+    if (start === -1) {
+      start = fallbackLocateChunk(sourceText, text, 0);
+    }
+
+    if (start === -1) {
       continue;
     }
 
-    start = Math.min(sourceText.length, start + safeChunkSize);
+    const end = start + text.length;
+    chunks.push({
+      index: chunks.length,
+      text,
+      char_count: text.length,
+      word_count: tokenizeWords(text).length,
+      token_count: countTokens(text),
+      start_char: start,
+      end_char: end,
+    });
+    cursor = end;
   }
 
   return chunks;
 };
 
-const splitMarkdownSections = (sourceText: string) => {
-  const headingPattern = /^#{1,6}\s.*$/gm;
-  const matches = [...sourceText.matchAll(headingPattern)];
-  if (!matches.length) return [{ start: 0, end: sourceText.length }];
+const createSplitter = (chunker: ChunkerValue, chunkSize: number, chunkOverlap: number) => {
+  const safeChunkSize = clamp(chunkSize, 32, Math.max(32, chunkSize));
+  const safeOverlap = clamp(chunkOverlap, 0, Math.max(0, safeChunkSize - 1));
+  const common = {
+    chunkSize: safeChunkSize,
+    chunkOverlap: safeOverlap,
+    keepSeparator: true,
+  };
 
-  const sections = [] as Array<{ start: number; end: number }>;
-  for (let index = 0; index < matches.length; index += 1) {
-    const start = matches[index].index ?? 0;
-    const end = index + 1 < matches.length ? (matches[index + 1].index ?? sourceText.length) : sourceText.length;
-    sections.push({ start, end });
+  switch (chunker) {
+    case "character":
+      return new CharacterTextSplitter({ ...common, separator: "" });
+    case "token":
+      return new TokenTextSplitter({
+        ...common,
+        encodingName: "cl100k_base",
+        allowedSpecial: [],
+        disallowedSpecial: "all",
+      });
+    case "markdown":
+      return new MarkdownTextSplitter(common);
+    default:
+      return new RecursiveCharacterTextSplitter(common);
   }
-
-  if ((matches[0].index ?? 0) > 0) {
-    sections.unshift({ start: 0, end: matches[0].index ?? 0 });
-  }
-
-  return sections;
 };
 
-const buildChunks = (sourceText: string, chunker: ChunkerValue, chunkSize: number, chunkOverlap: number) => {
+const buildChunks = async (sourceText: string, chunker: ChunkerValue, chunkSize: number, chunkOverlap: number) => {
   const normalizedSource = normalizeSource(sourceText);
   if (!normalizedSource) return [] as Chunk[];
 
-  if (chunker === "character") {
-    return buildWindowChunks(normalizedSource, chunkSize, chunkOverlap, []);
-  }
-
-  if (chunker === "token") {
-    return buildWindowChunks(normalizedSource, chunkSize, chunkOverlap, [" ", "\n"]);
-  }
-
-  if (chunker === "markdown") {
-    const markdownChunks: Chunk[] = [];
-    let indexOffset = 0;
-    for (const section of splitMarkdownSections(normalizedSource)) {
-      const sectionText = normalizedSource.slice(section.start, section.end);
-      const sectionChunks = buildWindowChunks(sectionText, chunkSize, chunkOverlap, ["\n## ", "\n### ", "\n\n", "\n", ". ", " "])
-        .map((chunk) => ({
-          ...chunk,
-          index: indexOffset + chunk.index,
-          start_char: chunk.start_char + section.start,
-          end_char: chunk.end_char + section.start,
-        }));
-      markdownChunks.push(...sectionChunks);
-      indexOffset = markdownChunks.length;
-    }
-    return markdownChunks;
-  }
-
-  return buildWindowChunks(normalizedSource, chunkSize, chunkOverlap, ["\n\n", "\n", ". ", "? ", "! ", "; ", ", ", " "]);
+  const splitter = createSplitter(chunker, chunkSize, chunkOverlap);
+  const chunkTexts = await splitter.splitText(normalizedSource);
+  return mapChunkTextsToChunks(normalizedSource, chunkTexts, chunkOverlap);
 };
 
 const buildTfIdfResources = (chunks: Chunk[]): TfIdfResources => {
@@ -311,9 +280,9 @@ const rankChunks = (chunks: Chunk[], chunkEmbeddings: number[][], queryEmbedding
     .map((match, index) => ({ ...match, rank: index + 1 }));
 };
 
-export function runLocalPipeline(input: PipelineInput): PipelineResponse {
+export async function runLocalPipeline(input: PipelineInput): Promise<PipelineResponse> {
   const sourceText = normalizeSource(input.sourceText);
-  const chunks = buildChunks(sourceText, input.chunker, input.chunkSize, input.chunkOverlap);
+  const chunks = await buildChunks(sourceText, input.chunker, input.chunkSize, input.chunkOverlap);
   const embeddingResources = buildEmbeddingResources(chunks, input.embeddingModel);
   const chunkEmbeddings = chunks.map((chunk) => embedText(chunk.text, embeddingResources));
   const queryEmbedding = embedText(input.query, embeddingResources);

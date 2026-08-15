@@ -35,6 +35,7 @@ type Props = {
   datasetLabel?: string;
   queryLabel?: string;
   className?: string;
+  neighborCount?: number;
 };
 
 const nearestNeighborsPlugin: Plugin<"scatter"> = {
@@ -50,13 +51,15 @@ const nearestNeighborsPlugin: Plugin<"scatter"> = {
     const vectors = vectorsDataset.data as VectorPoint[];
     const isDark = document.documentElement.classList.contains("dark");
 
+    const neighborCount = Math.max(1, Number(((chart.options.plugins as { nearestNeighbors?: { count?: number } } | undefined)?.nearestNeighbors?.count ?? 5)));
+
     const nearestPoints = vectors
       .map((point) => ({
         ...point,
         distance: Math.sqrt(Math.pow(point.x - query.x, 2) + Math.pow(point.y - query.y, 2)),
       }))
       .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0))
-      .slice(0, 5);
+      .slice(0, neighborCount);
 
     ctx.save();
     ctx.strokeStyle = isDark ? "rgba(163, 163, 163, 0.7)" : "rgba(128, 128, 128, 0.7)";
@@ -80,7 +83,7 @@ const nearestNeighborsPlugin: Plugin<"scatter"> = {
 
 ChartJS.register(LinearScale, PointElement, LineElement, Tooltip, Legend, Title, nearestNeighborsPlugin);
 
-export default function LowVectorVisualization({ data, query, title = "Low Vector Visualization", datasetLabel = "Vectors", queryLabel = "Query", className }: Props) {
+export default function LowVectorVisualization({ data, query, title = "Low Vector Visualization", datasetLabel = "Vectors", queryLabel = "Query", className, neighborCount = 5 }: Props) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
@@ -113,7 +116,7 @@ export default function LowVectorVisualization({ data, query, title = "Low Vecto
     return { datasets };
   }, [data, query, datasetLabel, queryLabel, isDark]);
 
-  const options: ChartOptions<"scatter"> & { plugins: { nearestNeighbors: { enabled: boolean } } } = {
+  const options: ChartOptions<"scatter"> & { plugins: { nearestNeighbors: { enabled: boolean; count: number } } } = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -134,7 +137,7 @@ export default function LowVectorVisualization({ data, query, title = "Low Vecto
           },
         },
       },
-      nearestNeighbors: { enabled: true },
+      nearestNeighbors: { enabled: true, count: neighborCount },
     },
     scales: {
       x: {

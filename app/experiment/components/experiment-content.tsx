@@ -55,7 +55,7 @@ export const stageTabs = [
 export const chunkerOptions = [
   { value: "character", label: "Fixed Character", description: "Simple uniform segmentation based on predetermined character length. Best for fast iteration and low-overhead demos." },
   { value: "recursive", label: "Recursive Character", description: "Preserves paragraph and sentence boundaries first, then falls back to smaller separators when needed." },
-  { value: "token", label: "Token Aware", description: "Uses word-like boundaries while keeping chunks within an approximate browser-friendly budget." },
+  { value: "token", label: "Token Aware", description: "Uses a real token-based splitter so chunk size and overlap are measured in tokens rather than raw characters." },
   { value: "markdown", label: "Markdown Structure", description: "Uses headings and markdown structure first so sections stay grouped logically." },
 ] as const;
 
@@ -128,6 +128,13 @@ export type ChunkerValue = (typeof chunkerOptions)[number]["value"];
 export type EmbeddingValue = (typeof embeddingOptions)[number]["value"];
 export type VectorStoreValue = (typeof vectorStoreOptions)[number]["value"];
 
+export const chunkerPresets: Record<ChunkerValue, { chunkSize: number; chunkOverlap: number }> = {
+  character: { chunkSize: 500, chunkOverlap: 50 },
+  recursive: { chunkSize: 500, chunkOverlap: 50 },
+  token: { chunkSize: 120, chunkOverlap: 20 },
+  markdown: { chunkSize: 400, chunkOverlap: 40 },
+};
+
 const isExperimentStep = (step: string | null): step is ExperimentStep => stageTabs.some((item) => item.id === step);
 
 export function ExperimentContent() {
@@ -196,13 +203,22 @@ export function ExperimentContent() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  const handleChunkerChange = (value: ChunkerValue) => {
+    setChunker(value);
+    const preset = chunkerPresets[value];
+    setChunkSize(preset.chunkSize);
+    setChunkOverlap(preset.chunkOverlap);
+    setResult(null);
+    setError(null);
+  };
+
   async function handleRun(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const nextResult = runLocalPipeline({
+      const nextResult = await runLocalPipeline({
         query,
         sourceText,
         sourceTitle: "Editable source paragraph",
@@ -242,7 +258,7 @@ export function ExperimentContent() {
         <TabsTrigger value="semantic-search" className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none"><Search className="h-4 w-4" /><span>Semantic Search</span></TabsTrigger>
         <TabsTrigger value="generation" className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none"><MessageSquare className="h-4 w-4" /><span>Context Generation</span></TabsTrigger>
       </TabsList>
-      <TabsContent value="text-splitting" className="stage-panel-shell" forceMount><TextSplittingTab currentStage={currentStage} sourceText={sourceText} setSourceText={setSourceText} chunker={chunker} setChunker={setChunker} chunkSize={chunkSize} setChunkSize={setChunkSize} chunkOverlap={chunkOverlap} setChunkOverlap={setChunkOverlap} loading={loading} error={error} result={result} onRun={handleRun} /></TabsContent>
+      <TabsContent value="text-splitting" className="stage-panel-shell" forceMount><TextSplittingTab currentStage={currentStage} sourceText={sourceText} setSourceText={setSourceText} chunker={chunker} setChunker={handleChunkerChange} chunkSize={chunkSize} setChunkSize={setChunkSize} chunkOverlap={chunkOverlap} setChunkOverlap={setChunkOverlap} loading={loading} error={error} result={result} onRun={handleRun} /></TabsContent>
       <TabsContent value="embedding" className="stage-panel-shell" forceMount><EmbeddingTab currentStage={currentStage} embeddingModel={embeddingModel} setEmbeddingModel={setEmbeddingModel} loading={loading} error={error} result={result} points={chunkEmbeddingPoints} onRun={handleRun} /></TabsContent>
       <TabsContent value="semantic-search" className="stage-panel-shell" forceMount><SemanticSearchTab currentStage={currentStage} query={query} setQuery={setQuery} vectorStore={vectorStore} setVectorStore={setVectorStore} topK={topK} setTopK={setTopK} loading={loading} error={error} result={result} points={semanticEmbeddingPoints.points} queryPoint={semanticEmbeddingPoints.queryPoint} onRun={handleRun} /></TabsContent>
       <TabsContent value="generation" className="stage-panel-shell" forceMount><GenerationTab currentStage={currentStage} loading={loading} error={error} result={result} onRun={handleRun} /></TabsContent>

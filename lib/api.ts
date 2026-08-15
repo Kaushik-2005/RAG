@@ -3,6 +3,7 @@ export type Chunk = {
   text: string;
   char_count: number;
   word_count: number;
+  token_count?: number;
   start_char: number;
   end_char: number;
 };
