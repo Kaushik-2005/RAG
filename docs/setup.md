@@ -6,14 +6,14 @@ This project runs as a single Next.js app from the repo root.
 
 - Node.js 20+
 - npm
-- Groq API key
+- Gemini API key
 
 ## Run locally
 
 1. Install dependencies with `npm install`.
 2. Create `.env.local` or `.env` at the repo root.
 3. Add:
-   - `GROQ_API_KEY=your_key`
+   - `GEMINI_API_KEY=your_key`
 4. Start the app with `npm run dev`.
 
 ## Notes
@@ -24,4 +24,4 @@ This project runs as a single Next.js app from the repo root.
 
 ## Deployment
 
-Deploy the repo root to Vercel and add `GROQ_API_KEY` in the Vercel project environment variables.
+Deploy the repo root to Vercel and add `GEMINI_API_KEY` in the Vercel project environment variables.

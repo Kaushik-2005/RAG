@@ -2,7 +2,7 @@
 
 ## Core shape
 
-`Next.js UI -> browser-side pipeline -> /api/generate -> Groq`
+`Next.js UI -> browser-side pipeline -> /api/generate -> Gemini`
 
 ## What runs in the browser
 
@@ -15,7 +15,7 @@
 
 ## What runs on the server
 
-- Groq chat completion call from the Next.js route handler
+- Gemini generateContent call from the Next.js route handler
 
 ## Why this shape
 

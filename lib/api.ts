@@ -45,10 +45,11 @@ export async function generateGroundedAnswer(input: { query: string; context: st
     body: JSON.stringify(input),
   });
 
-  const payload = (await response.json()) as { answer?: string; error?: string };
+  const payload = (await response.json()) as { answer?: string; error?: string; details?: string };
 
   if (!response.ok || !payload.answer) {
-    throw new Error(payload.error ?? `Generation request failed: ${response.status}`);
+    const message = payload.details ? `${payload.error ?? `Generation request failed: ${response.status}`}\n${payload.details}` : (payload.error ?? `Generation request failed: ${response.status}`);
+    throw new Error(message);
   }
 
   return payload.answer;

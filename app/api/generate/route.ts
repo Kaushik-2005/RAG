@@ -12,45 +12,61 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Query and context are required." }, { status: 400 });
     }
 
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: "GROQ_API_KEY is not configured." }, { status: 500 });
+      return NextResponse.json({ error: "GEMINI_API_KEY is not configured." }, { status: 500 });
     }
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: model || "llama-3.1-8b-instant",
-        temperature: 0.2,
-        top_p: 1,
-        max_completion_tokens: 1024,
-        stream: false,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: `Question:\n${query}\n\nRetrieved context:\n${context}`,
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || "gemini-3.6-flash")}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `${SYSTEM_PROMPT}
+
+Question:
+${query}
+
+Retrieved context:
+${context}`,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.05,
+            topP: 1,
+            maxOutputTokens: 1024,
           },
-        ],
-      }),
-    });
+        }),
+      },
+    );
 
     if (!response.ok) {
       const payload = await response.text();
-      return NextResponse.json({ error: `Groq request failed: ${response.status}`, details: payload }, { status: 500 });
+      return NextResponse.json({ error: `Gemini request failed: ${response.status}`, details: payload }, { status: 500 });
     }
 
     const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{ text?: string }>;
+        };
+      }>;
     };
 
-    const answer = payload.choices?.[0]?.message?.content?.trim();
+    const answer = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim();
     if (!answer) {
-      return NextResponse.json({ error: "Groq returned an empty answer." }, { status: 500 });
+      return NextResponse.json({ error: "Gemini returned an empty answer." }, { status: 500 });
     }
 
     return NextResponse.json({ answer });
