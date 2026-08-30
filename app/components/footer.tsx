@@ -16,16 +16,7 @@ export function Footer() {
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-10 md:h-24 md:py-0">
           <p className="text-sm leading-loose text-muted-foreground">
-            Built for learning Retrieval-Augmented Generation. Design reference inspired by{" "}
-            <Link
-              href="https://rag-play.vercel.app/"
-              target="_blank"
-              rel="noopener nofollow"
-              className="font-medium underline underline-offset-4 hover:text-primary"
-            >
-              RAG Play
-            </Link>
-            .
+            Built for learning Retrieval-Augmented Generation.
           </p>
           <Link
             className="text-muted-foreground transition-colors hover:text-foreground"
