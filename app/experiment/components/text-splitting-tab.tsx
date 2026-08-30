@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { CircleHelp } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +26,8 @@ type Props = {
   setChunkSize: (value: number) => void;
   chunkOverlap: number;
   setChunkOverlap: (value: number) => void;
+  recommendedChunker: ChunkerValue;
+  recommendedChunkSize: number;
   loading: boolean;
   error: string | null;
   result: PipelineResponse | null;
@@ -50,7 +52,7 @@ const LabelWithInfo = ({ label, hint }: { label: string; hint: string }) => (
   </div>
 );
 
-export function TextSplittingTab({ currentStage, sourceText, setSourceText, chunker, setChunker, chunkSize, setChunkSize, chunkOverlap, setChunkOverlap, loading, error, result, onRun }: Props) {
+export function TextSplittingTab({ currentStage, sourceText, setSourceText, chunker, setChunker, chunkSize, setChunkSize, chunkOverlap, setChunkOverlap, recommendedChunker, recommendedChunkSize, loading, error, result, onRun }: Props) {
   const averageChunkSize = result?.chunks.length
     ? Math.round(
       result.chunks.reduce(
@@ -72,6 +74,7 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
     ? `This paragraph is about ${result.chunks[0]?.token_count ?? 0} tokens, so it still fits inside the current ${chunkSize}-token budget. Reduce chunk size to see multiple token-based chunks.`
     : null;
   const recommendedPreset = chunkerPresets[chunker];
+  const followsMetadataRecommendation = chunker === recommendedChunker && chunkSize === recommendedChunkSize;
 
   const colorMap: Record<ChunkerValue, string> = {
     character: "split-dot-blue",
@@ -135,15 +138,21 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
           ))}
         </ul>
         <blockquote className="split-warning">
-          The splitters now run through LangChain JS. Character, recursive, markdown, and token modes are real splitter implementations. In token mode, chunk size and overlap are interpreted as tokens instead of characters. Switching modes also loads a recommended preset for that splitter.
+          The splitters run through LangChain JS. Character, recursive, markdown, and token modes are real splitter implementations, and token mode measures size and overlap in tokens rather than characters.
         </blockquote>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+          <div className="mb-2 text-xs uppercase tracking-[0.24em] text-muted-foreground">What changed from the previous stage</div>
+          <p className="mb-3">The cleaned document is now being converted into retrieval units. Metadata from the previous stage recommends <span className="font-medium text-foreground capitalize">{recommendedChunker}</span> chunking at about <span className="font-medium text-foreground">{recommendedChunkSize}</span> {recommendedChunker === "token" ? "tokens" : "characters"}.</p>
+          <p>{followsMetadataRecommendation ? "The current controls follow that recommendation." : "The current controls override that recommendation so you can compare chunking tradeoffs directly."}</p>
+        </div>
+
         <form className="space-y-3" onSubmit={onRun}>
           <div className="split-controls-stack">
             <div className="split-controls-row split-controls-row-top">
               <div className="split-inline-control split-inline-control-strategy">
-                <LabelWithInfo label="Split Strategy:" hint="Choose how the source text is broken into chunks." />
+                <LabelWithInfo label="Split Strategy:" hint="Choose how the cleaned document is broken into retrieval chunks." />
                 <div className="space-y-2">
                   <Select value={chunker} onValueChange={(value) => setChunker(value as ChunkerValue)}>
                     <SelectTrigger className="split-control-surface split-control-select">
@@ -154,7 +163,7 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Recommended preset: {recommendedPreset.chunkSize} {chunker === "token" ? "tokens" : "chars"} / {recommendedPreset.chunkOverlap} {chunker === "token" ? "token" : "char"} overlap
+                    Splitter preset: {recommendedPreset.chunkSize} {chunker === "token" ? "tokens" : "chars"} / {recommendedPreset.chunkOverlap} {chunker === "token" ? "token" : "char"} overlap
                   </p>
                 </div>
               </div>
@@ -184,8 +193,8 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
 
         <div className="split-workbench-head split-workbench-head-simple">
           <div className="split-workbench-head-left">
-            <span className="split-pane-kicker">Source Document</span>
-            <span className="split-pane-note">Splitter backend: LangChain JS</span>
+            <span className="split-pane-kicker">Cleaned document</span>
+            <span className="split-pane-note">Input from Parsing &amp; Cleaning</span>
           </div>
           <div className="split-workbench-head-right">
             <span className="split-pane-kicker">Generated Chunks</span>
@@ -208,8 +217,8 @@ export function TextSplittingTab({ currentStage, sourceText, setSourceText, chun
             <div className="split-chunks-frame flex h-[640px] flex-col p-4">
               <div className="split-stats-grid mb-4">
                 <div className="split-stat-card"><span className="split-stat-label">Chunks</span><div className="split-stat-value">{result?.chunks.length ?? 0}</div></div>
-                <div className="split-stat-card"><span className="split-stat-label">Avg. Size</span><div className="split-stat-value">{averageChunkSize}</div><div className="split-stat-unit">{sizeUnitLabel}</div></div>
-                <div className="split-stat-card"><span className="split-stat-label">Chunk Size</span><div className="split-stat-value">{result?.chunk_size ?? chunkSize}</div></div>
+                <div className="split-stat-card"><span className="split-stat-label">Average size</span><div className="split-stat-value">{averageChunkSize}</div><div className="split-stat-unit">{sizeUnitLabel}</div></div>
+                <div className="split-stat-card"><span className="split-stat-label">Chunk size</span><div className="split-stat-value">{result?.chunk_size ?? chunkSize}</div></div>
                 <div className="split-stat-card"><span className="split-stat-label">Overlap</span><div className="split-stat-value">{result?.chunk_overlap ?? chunkOverlap}</div><div className="split-stat-unit">{sizeUnitLabel}</div></div>
               </div>
               <div className="no-visible-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">

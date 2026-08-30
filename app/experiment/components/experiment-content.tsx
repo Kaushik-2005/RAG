@@ -1,15 +1,20 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Boxes, Database, MessageSquare, Search, SplitSquareHorizontal } from "lucide-react";
+import { Boxes, Database, FileText, MessageSquare, ScanText, Search, SplitSquareHorizontal, Tags } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateGroundedAnswer, type PipelineResponse } from "@/lib/api";
+import { buildMetadata, cleanDocument, ingestDocument, type CleaningOptions } from "@/lib/document-prep";
 import { runLocalPipeline } from "@/lib/pipeline";
 import { embedTo2D } from "@/lib/utils";
+import { DataSourcesTab } from "./data-sources-tab";
 import { EmbeddingTab } from "./embedding-tab";
 import { GenerationTab } from "./generation-tab";
+import { IngestionTab } from "./ingestion-tab";
+import { MetadataEnrichmentTab } from "./metadata-enrichment-tab";
+import { ParsingCleaningTab } from "./parsing-cleaning-tab";
 import { SemanticSearchTab } from "./semantic-search-tab";
 import { TextSplittingTab } from "./text-splitting-tab";
 
@@ -38,14 +43,53 @@ export const phaseTabs = [
 
 export const stageTabs = [
   {
+    id: "data-sources",
+    phase: "document-prep",
+    label: "Data Sources",
+    hint: "Document input",
+    title: "Data Sources",
+    description: "Choose the source material, label its format, and establish the raw input the rest of document preparation will operate on.",
+    explanation: "Production RAG starts with source selection. Before any cleaning or chunking, the system needs to know what kind of document it is dealing with and what raw text should move into ingestion.",
+    icon: FileText,
+  },
+  {
+    id: "ingestion",
+    phase: "document-prep",
+    label: "Ingestion",
+    hint: "Working document",
+    title: "Ingestion",
+    description: "Convert the raw source into a stable working document with normalized structure and baseline counts.",
+    explanation: "Ingestion is where raw content becomes pipeline-ready. It does not decide meaning yet, but it creates the canonical document representation that later stages can clean, annotate, and split consistently.",
+    icon: Database,
+  },
+  {
+    id: "parsing-cleaning",
+    phase: "document-prep",
+    label: "Parsing & Cleaning",
+    hint: "Normalization",
+    title: "Parsing & Cleaning",
+    description: "Remove formatting noise and normalize spacing so later chunking decisions are made on cleaner text.",
+    explanation: "This stage reduces structural noise without changing the document's meaning. Even small cleanup choices can change chunk boundaries, keyword extraction, and retrieval precision.",
+    icon: ScanText,
+  },
+  {
+    id: "metadata-enrichment",
+    phase: "document-prep",
+    label: "Metadata Enrichment",
+    hint: "Document signals",
+    title: "Metadata Enrichment",
+    description: "Attach document-level signals such as identifiers, keywords, and chunking recommendations before indexing.",
+    explanation: "Metadata is how later phases reason about more than plain text. It supports filtering, observability, routing, and retrieval policy decisions before embeddings are created.",
+    icon: Tags,
+  },
+  {
     id: "text-splitting",
     phase: "document-prep",
     label: "Text Splitting",
     hint: "Chunk strategy",
     title: "Text Splitting",
-    description: "Visualize how documents are split into meaningful chunks while preserving semantic coherence.",
-    explanation:
-      "This stage only changes how the source paragraph is split. The rest of the pipeline runs later, but the output here is the chunk list and chunk size summary.",
+    description: "Split the cleaned document into retrieval units while balancing semantic coherence, size, and overlap.",
+    explanation: "Chunking defines the units retrieval can search. This stage applies the selected splitter to the cleaned document and shows exactly what passages the rest of the pipeline will embed.",
     icon: SplitSquareHorizontal,
   },
   {
@@ -55,8 +99,7 @@ export const stageTabs = [
     hint: "Embedding model",
     title: "Vector Embedding",
     description: "View the chunks and their vector embeddings side by side before any query-time retrieval happens.",
-    explanation:
-      "This stage only changes the browser-side embedding strategy. The output shows the chunk text and the vectors produced from that text.",
+    explanation: "This stage only changes the browser-side embedding strategy. The output shows the chunk text and the vectors produced from that text.",
     icon: Boxes,
   },
   {
@@ -66,8 +109,7 @@ export const stageTabs = [
     hint: "Query and ranking",
     title: "Semantic Search",
     description: "Embed a query, compare it against the knowledge-base vectors, and inspect the chunks selected for retrieval.",
-    explanation:
-      "This stage only changes the query and retrieval settings. The output shows the query embedding, similarity scores, and the retrieved chunks.",
+    explanation: "This stage only changes the query and retrieval settings. The output shows the query embedding, similarity scores, and the retrieved chunks.",
     icon: Search,
   },
   {
@@ -77,10 +119,15 @@ export const stageTabs = [
     hint: "Answer output",
     title: "Context Generation",
     description: "Observe how the LLM combines retrieved context with the user query to generate a grounded response.",
-    explanation:
-      "This stage uses the retrieved chunks and query from the previous step. The output shows the final answer and the exact context passed to the model.",
+    explanation: "This stage uses the retrieved chunks and query from the previous step. The output shows the final answer and the exact context passed to the model.",
     icon: MessageSquare,
   },
+] as const;
+
+export const sourceKindOptions = [
+  { value: "essay", label: "Essay / article" },
+  { value: "markdown", label: "Markdown document" },
+  { value: "notes", label: "Notes / KB entry" },
 ] as const;
 
 export const chunkerOptions = [
@@ -101,19 +148,22 @@ export const vectorStoreOptions = [
   { value: "dot", label: "Dot Product" },
 ] as const;
 
-export const defaultSourceText = `Retrieval-augmented generation, or RAG, is a system design pattern that improves the output of a large language model by connecting it to external knowledge before an answer is produced. Instead of relying only on what the model memorized during training, a RAG system retrieves relevant information from trusted sources and passes that information into the prompt as context. This makes the final answer more grounded, more current, and easier to inspect. In practice, teams adopt RAG when they want higher factual accuracy, better control over responses, and clearer visibility into which documents influenced an answer.
+export const defaultSourceText = `  Retrieval-augmented generation, or RAG, is a system design pattern that improves the output of a large language model by connecting it to external knowledge before an answer is produced.  Instead of relying only on what the model memorized during training, a RAG system retrieves relevant information from trusted sources and passes that information into the prompt as context. This makes the final answer more grounded, more current, and easier to inspect. In practice, teams adopt RAG when they want higher factual accuracy, better control over responses, and clearer visibility into which documents influenced an answer.   
 
-Large language models are capable of fluent and useful text generation, but they also have structural limitations. Their training data may be stale, they may answer confidently even when evidence is weak, and they may not naturally prioritize authoritative internal documents over broad public knowledge. RAG addresses these weaknesses by explicitly retrieving information from selected data sources at question time. This allows an application to respond using updated manuals, policies, technical documentation, research notes, or knowledge-base records without retraining the base model. In production systems, this pattern improves trust, reduces hallucination risk, and makes it easier to connect model outputs to real business data.
+Large language models are capable of fluent and useful text generation, but they also have structural limitations.   Their training data may be stale, they may answer confidently even when evidence is weak, and they may not naturally prioritize authoritative internal documents over broad public knowledge. RAG addresses these weaknesses by explicitly retrieving information from selected data sources at question time. This allows an application to respond using updated manuals, policies, technical documentation, research notes, or knowledge-base records without retraining the base model. In production systems, this pattern improves trust, reduces hallucination risk, and makes it easier to connect model outputs to real business data.
 
-A central step in RAG is chunking, which is the process of splitting a long source document into smaller units before embeddings are created. A full document is often too large and too mixed in topic to compare directly against a short user query, so the pipeline breaks it into manageable passages. Each chunk should be large enough to preserve meaning, but small enough to isolate relevant information. Good chunking improves retrieval because the system compares the user query with focused passages instead of one long block of unrelated material. If chunking is poor, the retriever may miss relevant evidence, return noisy passages, or dilute the importance of the information that actually matters.
 
-Chunking matters because it affects nearly every downstream stage in the pipeline. If chunks are too short, they may lose context and no longer contain enough information to answer a question. If chunks are too large, similarity search becomes less precise because a single chunk may contain several unrelated ideas. Overlap is often added so that information near boundaries is not lost when a sentence or concept spans two chunks. Different chunking strategies create different tradeoffs. Fixed-size chunking is simple and predictable. Recursive chunking tries to preserve paragraph and sentence boundaries. Token-aware chunking aligns better with model context windows. Markdown-aware chunking uses visible document structure such as headings, lists, and sections to keep related material together.
+
+A central step in RAG is chunking, which is the process of splitting a long source document into smaller units before embeddings are created. A full document is often too large and too mixed in topic to compare directly against a short user query, so the pipeline breaks it into manageable passages.  Each chunk should be large enough to preserve meaning, but small enough to isolate relevant information. Good chunking improves retrieval because the system compares the user query with focused passages instead of one long block of unrelated material. If chunking is poor, the retriever may miss relevant evidence, return noisy passages, or dilute the importance of the information that actually matters.
+
+Chunking matters because it affects nearly every downstream stage in the pipeline. If chunks are too short, they may lose context and no longer contain enough information to answer a question. If chunks are too large, similarity search becomes less precise because a single chunk may contain several unrelated ideas. Overlap is often added so that information near boundaries is not lost when a sentence or concept spans two chunks. Different chunking strategies create different tradeoffs. Fixed-size chunking is simple and predictable. Recursive chunking tries to preserve paragraph and sentence boundaries. Token-aware chunking aligns better with model context windows. Markdown-aware chunking uses visible document structure such as headings, lists, and sections to keep related material together.    
 
 After chunking, each passage is transformed into a vector representation called an embedding. An embedding is a numerical representation of text that places semantically related passages near each other in vector space. The goal is not to preserve the exact words of a chunk, but to preserve enough meaning that similar text can be found later. Queries are embedded with the same model so the system can compare a user question to stored document chunks mathematically. This makes semantic retrieval possible even when the question and the document do not use exactly the same wording.
 
 At query time, the user question is converted into its own embedding and compared with the chunk embeddings stored in the index. The system ranks candidate chunks by similarity and selects the top matches for further processing. This is the retrieval step. Retrieval is critical because the model can only generate a grounded answer if the relevant evidence is actually surfaced. If the correct chunk is never retrieved, the generation model does not have the information it needs. That is why retrieval quality is often the most important bottleneck in a production RAG system.
 
-Many production RAG systems add logic after the first retrieval pass. Metadata filtering narrows the candidate set based on source, date, document type, permissions, or section labels. Reranking then reorders the retrieved candidates using a more precise model or heuristic so that the strongest evidence is prioritized. The first retrieval step is optimized for speed, while reranking is optimized for relevance. This two-stage design often improves answer quality because the final context is built from the best candidates rather than only the fastest approximate matches.
+Many production RAG systems add logic after the first retrieval pass. Metadata filtering narrows the candidate set based on source, date, document type, permissions, or section labels. Reranking then reorders the retrieved candidates using a more precise model or heuristic so that the strongest evidence is prioritized.  The first retrieval step is optimized for speed, while reranking is optimized for relevance. This two-stage design often improves answer quality because the final context is built from the best candidates rather than only the fastest approximate matches.
+
 
 Once the system has selected the most relevant chunks, it assembles them into the prompt context passed to the language model. This stage is often called context construction or prompt augmentation. The system may include chunk text, source titles, metadata, timestamps, and citations. The final prompt should be structured so the model can clearly separate the user question from the retrieved evidence. Good context construction reduces ambiguity, improves citation quality, and helps the model stay grounded. Bad context construction can waste context window space or bury the most useful evidence under less relevant text.
 
@@ -123,10 +173,94 @@ A useful RAG application should not only give an answer, but also show why that 
 
 A basic demo pipeline usually shows text splitting, embeddings, retrieval, and response generation. A production RAG system adds more stages before and after that core loop. Upstream stages may include data ingestion, parsing, cleaning, deduplication, metadata enrichment, and indexing. Query-time stages may include normalization, expansion, candidate retrieval, filtering, reranking, and context packing. Downstream stages may include citation rendering, groundedness checks, evaluation, latency tracking, and monitoring. These additions are not cosmetic. They are the difference between a toy example and a system that can be trusted in real use.
 
-RAG is therefore not just a prompt trick. It is an engineering pipeline that combines document preparation, semantic retrieval, and grounded generation. Chunking matters because it determines the units the retriever can search. Embeddings matter because they translate meaning into vector space. Retrieval matters because only retrieved evidence can support the answer. Context construction matters because the model needs clean and relevant evidence. Generation matters because the final answer should be concise, factual, and limited to what the context supports. A strong RAG system is the result of many good decisions across the full pipeline, not just a single model call.`;
+RAG is therefore not just a prompt trick. It is an engineering pipeline that combines document preparation, semantic retrieval, and grounded generation. Chunking matters because it determines the units the retriever can search. Embeddings matter because they translate meaning into vector space. Retrieval matters because only retrieved evidence can support the answer. Context construction matters because the model needs clean and relevant evidence. Generation matters because the final answer should be concise, factual, and limited to what the context supports. A strong RAG system is the result of many good decisions across the full pipeline, not just a single model call.   `;
+
+export const sourceTitleSamples = {
+  essay: "RAG reference essay",
+  markdown: "RAG architecture markdown guide",
+  notes: "RAG implementation notes",
+} as const;
+
+export const sourceTextSamples = {
+  essay: defaultSourceText,
+  markdown: `# Retrieval-Augmented Generation  
+
+Retrieval-augmented generation (RAG) connects a language model to external knowledge so answers can be grounded in source material instead of relying only on model memory.   
+
+## Why teams use it
+
+- improve factual grounding  
+- use current internal documents
+- inspect which passages influenced an answer
+- reduce unsupported generations
+
+
+## Core preparation flow
+
+Before retrieval can work well, source documents have to be prepared carefully.  A production pipeline usually ingests files from trusted systems, normalizes formatting, extracts metadata, and splits content into chunks that are suitable for embedding.
+
+## Why chunking matters
+
+Chunking defines the units retrieval can search. Very small chunks may lose context.   Very large chunks may mix unrelated ideas. Recursive or markdown-aware chunking often works well for structured technical content because section boundaries already carry meaning.
+
+## Metadata examples
+
+Useful metadata may include:
+
+- document id
+- source type
+- team ownership
+- updated date
+- security label
+- section title
+
+
+## Downstream use
+
+After chunking, each passage is embedded into a vector. At query time, the user question is embedded with the same model, the nearest chunks are retrieved, and the best context is passed into the generation step.   `,
+  notes: `  RAG implementation notes
+
+RAG improves LLM answers by retrieving external evidence first.   
+
+Practical goals:
+- keep answers grounded
+- show supporting passages
+- reduce hallucinations
+- support fresh internal knowledge
+
+
+Document prep matters.
+Raw text is rarely ready for retrieval.
+Common steps:
+- ingest source
+- normalize formatting
+- remove noisy spacing
+- add metadata
+- split into chunks
+
+Chunking guidance:
+- tiny chunks lose context
+- huge chunks reduce precision
+- overlap helps preserve boundary meaning
+- recursive chunking is a good general default
+
+Metadata can help later with:
+- filtering by source or team
+- routing by document type
+- showing citations
+- debugging retrieval mistakes
+
+
+Retrieval flow:
+query -> query embedding -> candidate chunks -> ranking -> context -> answer
+
+Grounded generation rule:
+If the answer is not supported by retrieved context, the system should abstain instead of inventing facts.   `
+} as const;
 
 export type ExperimentPhase = (typeof phaseTabs)[number]["id"];
 export type ExperimentStep = (typeof stageTabs)[number]["id"];
+export type SourceKindValue = (typeof sourceKindOptions)[number]["value"];
 export type ChunkerValue = (typeof chunkerOptions)[number]["value"];
 export type EmbeddingValue = (typeof embeddingOptions)[number]["value"];
 export type VectorStoreValue = (typeof vectorStoreOptions)[number]["value"];
@@ -141,6 +275,50 @@ export const chunkerPresets: Record<ChunkerValue, { chunkSize: number; chunkOver
 const isExperimentPhase = (phase: string | null): phase is ExperimentPhase => phaseTabs.some((item) => item.id === phase);
 const isExperimentStep = (step: string | null): step is ExperimentStep => stageTabs.some((item) => item.id === step);
 const getStagesForPhase = (phase: ExperimentPhase) => stageTabs.filter((stage) => stage.phase === phase);
+
+function injectFormattingNoise(value: string, sourceKind: SourceKindValue) {
+  const categoryIndex = [
+    value.split("  ").length,
+    value.split("\n\n\n").length,
+    value.split("\n   ").length,
+    value.split("- ").length,
+    value.split("# ").length,
+  ].reduce((total, count) => total + count, 0) % 5;
+
+  if (sourceKind === "markdown") {
+    const variants = [
+      (text: string) => text.replace(/A production pipeline usually ingests files/, "A production pipeline  usually ingests files"),
+      (text: string) => text.replace(/\n\n## Why teams use it/, "\n\n\n## Why teams use it"),
+      (text: string) => text.replace(/^# /m, "  # "),
+      (text: string) => text.replace(/- document id/, "-  document id"),
+      (text: string) => text.replace(/## Downstream use/, " ## Downstream use"),
+    ];
+
+    return variants[categoryIndex]?.(value).concat("\n") ?? value.concat("\n");
+  }
+
+  if (sourceKind === "notes") {
+    const variants = [
+      (text: string) => text.replace(/retrieving external evidence first\./, "retrieving external evidence first.   "),
+      (text: string) => text.replace(/\n\nDocument prep matters\./, "\n\n\nDocument prep matters."),
+      (text: string) => text.replace(/^RAG implementation notes/m, "  RAG implementation notes"),
+      (text: string) => text.replace(/- keep answers grounded/, "-  keep answers grounded"),
+      (text: string) => text.replace(/Metadata can help later with:/, " Metadata can help later with:"),
+    ];
+
+    return variants[categoryIndex]?.(value).concat("\n") ?? value.concat("\n");
+  }
+
+  const variants = [
+    (text: string) => text.replace(/before an answer is produced\./, "before an answer is produced.  "),
+    (text: string) => text.replace(/\n\nA central step in RAG is chunking/, "\n\n\nA central step in RAG is chunking"),
+    (text: string) => text.replace(/^/, "  "),
+    (text: string) => text.replace(/Instead of relying only on what the model memorized during training/, "Instead of relying only on what the model memorized during training\n-"),
+    (text: string) => text.replace(/Reranking then reorders the retrieved candidates/, " Reranking then reorders the retrieved candidates"),
+  ];
+
+  return variants[categoryIndex]?.(value).concat(" ") ?? value.concat(" ");
+}
 
 export function ExperimentContent() {
   const router = useRouter();
@@ -161,7 +339,14 @@ export function ExperimentContent() {
     ? requestedStep
     : stagesInActivePhase[0]?.id ?? defaultStage.id;
 
-  const [sourceText, setSourceText] = useState(defaultSourceText);
+  const [sourceTitle, setSourceTitle] = useState<string>(sourceTitleSamples.essay);
+  const [sourceKind, setSourceKind] = useState<SourceKindValue>("essay");
+  const [sourceText, setSourceText] = useState<string>(sourceTextSamples.essay);
+  const [cleaningOptions, setCleaningOptions] = useState<CleaningOptions>({
+    trimLines: true,
+    normalizeSpaces: true,
+    collapseBlankLines: true,
+  });
   const [query, setQuery] = useState("What is RAG?");
   const [chunker, setChunker] = useState<ChunkerValue>("recursive");
   const [chunkSize, setChunkSize] = useState(500);
@@ -173,21 +358,17 @@ export function ExperimentContent() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PipelineResponse | null>(null);
 
+  const ingestedDocument = useMemo(() => ingestDocument({ title: sourceTitle, sourceKind, text: sourceText }), [sourceKind, sourceText, sourceTitle]);
+  const cleanedDocument = useMemo(() => cleanDocument(ingestedDocument.normalizedText, cleaningOptions), [cleaningOptions, ingestedDocument.normalizedText]);
+  const documentMetadata = useMemo(() => buildMetadata({ title: sourceTitle, sourceKind, ingested: ingestedDocument, cleaned: cleanedDocument }), [cleanedDocument, ingestedDocument, sourceKind, sourceTitle]);
+
   const currentPhase = useMemo(() => phaseTabs.find((phase) => phase.id === activePhase) ?? phaseTabs[0], [activePhase]);
   const currentStage = useMemo(() => stageTabs.find((stage) => stage.id === activeStep) ?? stageTabs[0], [activeStep]);
 
   const chunkEmbeddingPoints = useMemo(() => {
-    if (!result?.chunk_embeddings?.length) {
-      return [] as Array<{ x: number; y: number; label: string; chunk: number }>;
-    }
-
+    if (!result?.chunk_embeddings?.length) return [] as Array<{ x: number; y: number; label: string; chunk: number }>;
     try {
-      return embedTo2D(result.chunk_embeddings).map((point, index) => ({
-        x: point.x,
-        y: point.y,
-        label: `Chunk ${index + 1}`,
-        chunk: index + 1,
-      }));
+      return embedTo2D(result.chunk_embeddings).map((point, index) => ({ x: point.x, y: point.y, label: `Chunk ${index + 1}`, chunk: index + 1 }));
     } catch {
       return [] as Array<{ x: number; y: number; label: string; chunk: number }>;
     }
@@ -197,17 +378,11 @@ export function ExperimentContent() {
     if (!result?.query_embedding?.length || !result?.chunk_embeddings?.length) {
       return { queryPoint: null as { x: number; y: number } | null, points: [] as Array<{ x: number; y: number; label: string; chunk: number }> };
     }
-
     try {
       const embedding2d = embedTo2D([result.query_embedding, ...result.chunk_embeddings]);
       return {
         queryPoint: { x: embedding2d[0].x, y: embedding2d[0].y },
-        points: embedding2d.slice(1).map((point, index) => ({
-          x: point.x,
-          y: point.y,
-          label: `Chunk ${index + 1}`,
-          chunk: index + 1,
-        })),
+        points: embedding2d.slice(1).map((point, index) => ({ x: point.x, y: point.y, label: `Chunk ${index + 1}`, chunk: index + 1 })),
       };
     } catch {
       return { queryPoint: null as { x: number; y: number } | null, points: [] as Array<{ x: number; y: number; label: string; chunk: number }> };
@@ -235,6 +410,20 @@ export function ExperimentContent() {
     updateRoute(stage.phase, stage.id);
   };
 
+  const handleSourceKindChange = (value: SourceKindValue) => {
+    setSourceKind(value);
+    setSourceTitle(sourceTitleSamples[value]);
+    setSourceText(sourceTextSamples[value]);
+    setResult(null);
+    setError(null);
+  };
+
+  const handleInjectNoise = () => {
+    setSourceText((current) => injectFormattingNoise(current, sourceKind));
+    setResult(null);
+    setError(null);
+  };
+
   const handleChunkerChange = (value: ChunkerValue) => {
     setChunker(value);
     const preset = chunkerPresets[value];
@@ -252,8 +441,8 @@ export function ExperimentContent() {
     try {
       const nextResult = await runLocalPipeline({
         query,
-        sourceText,
-        sourceTitle: "Editable source paragraph",
+        sourceText: cleanedDocument.text,
+        sourceTitle,
         chunker,
         chunkSize,
         chunkOverlap,
@@ -266,10 +455,7 @@ export function ExperimentContent() {
         if (!nextResult.context.trim()) {
           setResult({ ...nextResult, answer: "I do not know based on the provided context." });
         } else {
-          const answer = await generateGroundedAnswer({
-            query: nextResult.query,
-            context: nextResult.context,
-          });
+          const answer = await generateGroundedAnswer({ query: nextResult.query, context: nextResult.context });
           setResult({ ...nextResult, answer });
         }
       } else {
@@ -282,16 +468,14 @@ export function ExperimentContent() {
     }
   }
 
+  const stageGridClass = stagesInActivePhase.length === 1 ? "grid-cols-1" : stagesInActivePhase.length === 2 ? "grid-cols-2" : stagesInActivePhase.length <= 4 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-3 xl:grid-cols-5";
+
   return (
     <div className="space-y-4">
       <Tabs value={activePhase} onValueChange={handlePhaseChange} className="space-y-3">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl border border-[#ececec] bg-[#f5f5f5] p-1 dark:border-[#2a2a2a] dark:bg-[#151515] md:grid-cols-4">
           {phaseTabs.map((phase) => (
-            <TabsTrigger
-              key={phase.id}
-              value={phase.id}
-              className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none"
-            >
+            <TabsTrigger key={phase.id} value={phase.id} className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none">
               <span>{phase.label}</span>
             </TabsTrigger>
           ))}
@@ -307,15 +491,11 @@ export function ExperimentContent() {
       </div>
 
       <Tabs value={activeStep} onValueChange={handleStepChange} className="space-y-4">
-        <TabsList className={`grid h-auto w-full gap-1 rounded-2xl border border-[#ececec] bg-[#f5f5f5] p-1 dark:border-[#2a2a2a] dark:bg-[#151515] ${stagesInActivePhase.length === 1 ? "grid-cols-1" : stagesInActivePhase.length === 2 ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3"}`}>
+        <TabsList className={`grid h-auto w-full gap-1 rounded-2xl border border-[#ececec] bg-[#f5f5f5] p-1 dark:border-[#2a2a2a] dark:bg-[#151515] ${stageGridClass}`}>
           {stagesInActivePhase.map((stage) => {
             const Icon = stage.icon;
             return (
-              <TabsTrigger
-                key={stage.id}
-                value={stage.id}
-                className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none"
-              >
+              <TabsTrigger key={stage.id} value={stage.id} className="space-x-2 text-[#5f6b7a] dark:text-[#8c8c8c] data-[state=active]:bg-white data-[state=active]:text-[#0f172a] data-[state=active]:shadow-none dark:data-[state=active]:bg-[#222222] dark:data-[state=active]:text-[#f3f3f3] dark:data-[state=active]:shadow-none">
                 <Icon className="h-4 w-4" />
                 <span>{stage.label}</span>
               </TabsTrigger>
@@ -323,30 +503,28 @@ export function ExperimentContent() {
           })}
         </TabsList>
 
-        <TabsContent value="text-splitting" className="stage-panel-shell" forceMount hidden={activeStep !== "text-splitting"}>
-          <TextSplittingTab
-            currentStage={currentStage}
-            sourceText={sourceText}
-            setSourceText={setSourceText}
-            chunker={chunker}
-            setChunker={handleChunkerChange}
-            chunkSize={chunkSize}
-            setChunkSize={setChunkSize}
-            chunkOverlap={chunkOverlap}
-            setChunkOverlap={setChunkOverlap}
-            loading={loading}
-            error={error}
-            result={result}
-            onRun={handleRun}
-          />
+        <TabsContent value="data-sources" className="stage-panel-shell" forceMount hidden={activeStep != "data-sources"}>
+          <DataSourcesTab currentStage={currentStage} sourceTitle={sourceTitle} setSourceTitle={setSourceTitle} sourceKind={sourceKind} setSourceKind={handleSourceKindChange} sourceText={sourceText} setSourceText={setSourceText} onInjectNoise={handleInjectNoise} charCount={ingestedDocument.charCount} wordCount={ingestedDocument.wordCount} paragraphCount={ingestedDocument.paragraphCount} estimatedTokens={ingestedDocument.estimatedTokens} />
         </TabsContent>
-        <TabsContent value="embedding" className="stage-panel-shell" forceMount hidden={activeStep !== "embedding"}>
+        <TabsContent value="ingestion" className="stage-panel-shell" forceMount hidden={activeStep != "ingestion"}>
+          <IngestionTab currentStage={currentStage} sourceText={sourceText} ingestedDocument={ingestedDocument} />
+        </TabsContent>
+        <TabsContent value="parsing-cleaning" className="stage-panel-shell" forceMount hidden={activeStep != "parsing-cleaning"}>
+          <ParsingCleaningTab currentStage={currentStage} ingestedDocument={ingestedDocument} cleanedDocument={cleanedDocument} cleaningOptions={cleaningOptions} setCleaningOptions={setCleaningOptions} />
+        </TabsContent>
+        <TabsContent value="metadata-enrichment" className="stage-panel-shell" forceMount hidden={activeStep != "metadata-enrichment"}>
+          <MetadataEnrichmentTab currentStage={currentStage} metadata={documentMetadata} />
+        </TabsContent>
+        <TabsContent value="text-splitting" className="stage-panel-shell" forceMount hidden={activeStep != "text-splitting"}>
+          <TextSplittingTab currentStage={currentStage} sourceText={cleanedDocument.text} setSourceText={setSourceText} chunker={chunker} setChunker={handleChunkerChange} chunkSize={chunkSize} setChunkSize={setChunkSize} chunkOverlap={chunkOverlap} setChunkOverlap={setChunkOverlap} recommendedChunker={documentMetadata.recommendedChunker} recommendedChunkSize={documentMetadata.recommendedChunkSize} loading={loading} error={error} result={result} onRun={handleRun} />
+        </TabsContent>
+        <TabsContent value="embedding" className="stage-panel-shell" forceMount hidden={activeStep != "embedding"}>
           <EmbeddingTab currentStage={currentStage} embeddingModel={embeddingModel} setEmbeddingModel={setEmbeddingModel} loading={loading} error={error} result={result} points={chunkEmbeddingPoints} onRun={handleRun} />
         </TabsContent>
-        <TabsContent value="semantic-search" className="stage-panel-shell" forceMount hidden={activeStep !== "semantic-search"}>
+        <TabsContent value="semantic-search" className="stage-panel-shell" forceMount hidden={activeStep != "semantic-search"}>
           <SemanticSearchTab currentStage={currentStage} query={query} setQuery={setQuery} vectorStore={vectorStore} setVectorStore={setVectorStore} topK={topK} setTopK={setTopK} loading={loading} error={error} result={result} points={semanticEmbeddingPoints.points} queryPoint={semanticEmbeddingPoints.queryPoint} onRun={handleRun} />
         </TabsContent>
-        <TabsContent value="generation" className="stage-panel-shell" forceMount hidden={activeStep !== "generation"}>
+        <TabsContent value="generation" className="stage-panel-shell" forceMount hidden={activeStep != "generation"}>
           <GenerationTab currentStage={currentStage} loading={loading} error={error} result={result} onRun={handleRun} />
         </TabsContent>
       </Tabs>
