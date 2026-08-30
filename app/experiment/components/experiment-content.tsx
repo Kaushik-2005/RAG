@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Boxes, Database, FileText, MessageSquare, ScanText, Search, SplitSquareHorizontal, Tags } from "lucide-react";
+import { Boxes, Database, FileText, Filter, ListOrdered, MessageSquare, ScanText, Search, SplitSquareHorizontal, Tags, Waypoints, FileSearch } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateGroundedAnswer, type PipelineResponse } from "@/lib/api";
@@ -15,8 +15,12 @@ import { GenerationTab } from "./generation-tab";
 import { IngestionTab } from "./ingestion-tab";
 import { MetadataEnrichmentTab } from "./metadata-enrichment-tab";
 import { ParsingCleaningTab } from "./parsing-cleaning-tab";
+import { CandidateRetrievalTab } from "./candidate-retrieval-tab";
+import { FilteringTab } from "./filtering-tab";
+import { QueryProcessingTab } from "./query-processing-tab";
 import { SemanticSearchTab } from "./semantic-search-tab";
 import { TextSplittingTab } from "./text-splitting-tab";
+import { VectorIndexTab } from "./vector-index-tab";
 
 export const phaseTabs = [
   {
@@ -101,6 +105,46 @@ export const stageTabs = [
     description: "View the chunks and their vector embeddings side by side before any query-time retrieval happens.",
     explanation: "This stage only changes the browser-side embedding strategy. The output shows the chunk text and the vectors produced from that text.",
     icon: Boxes,
+  },
+  {
+    id: "vector-index",
+    phase: "retrieval-setup",
+    label: "Vector Index",
+    hint: "Indexed store",
+    title: "Vector Index",
+    description: "Inspect how chunk embeddings are organized into an index structure before any user query is scored.",
+    explanation: "Embeddings are only useful for retrieval after they are stored in an index. This stage makes that indexing step explicit so learners can see what retrieval actually searches over.",
+    icon: Waypoints,
+  },
+  {
+    id: "query-processing",
+    phase: "query-time-retrieval",
+    label: "Query Processing",
+    hint: "Normalize query",
+    title: "Query Processing",
+    description: "Normalize and inspect the user question before it is embedded and matched against the vector index.",
+    explanation: "Production retrieval often begins with query cleanup and inspection. This stage makes the pre-embedding query representation visible before similarity search runs.",
+    icon: FileSearch,
+  },
+  {
+    id: "candidate-retrieval",
+    phase: "query-time-retrieval",
+    label: "Candidate Retrieval",
+    hint: "Score candidates",
+    title: "Candidate Retrieval",
+    description: "Score every indexed chunk against the processed query and inspect the ranked candidate pool before the final search view.",
+    explanation: "This stage makes the retrieval cutoff explicit. Every indexed chunk receives a score, then the system selects the current top-k candidates to carry forward.",
+    icon: ListOrdered,
+  },
+  {
+    id: "filtering",
+    phase: "query-time-retrieval",
+    label: "Filtering",
+    hint: "Prune candidates",
+    title: "Filtering",
+    description: "Remove weak or unsuitable candidates from the selected retrieval window before the final semantic-search view.",
+    explanation: "Production pipelines often filter candidates by score, metadata, permissions, freshness, or lexical constraints. This stage makes that pruning step explicit.",
+    icon: Filter,
   },
   {
     id: "semantic-search",
@@ -354,6 +398,9 @@ export function ExperimentContent() {
   const [embeddingModel, setEmbeddingModel] = useState<EmbeddingValue>("tfidf");
   const [vectorStore, setVectorStore] = useState<VectorStoreValue>("cosine");
   const [topK, setTopK] = useState(5);
+  const [minScore, setMinScore] = useState(0);
+  const [requireKeywordOverlap, setRequireKeywordOverlap] = useState(false);
+  const [minWordCount, setMinWordCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PipelineResponse | null>(null);
@@ -449,6 +496,9 @@ export function ExperimentContent() {
         embeddingModel,
         vectorStore,
         topK,
+        minScore,
+        requireKeywordOverlap,
+        minWordCount,
       });
 
       if (activeStep === "generation") {
@@ -520,6 +570,18 @@ export function ExperimentContent() {
         </TabsContent>
         <TabsContent value="embedding" className="stage-panel-shell" forceMount hidden={activeStep != "embedding"}>
           <EmbeddingTab currentStage={currentStage} embeddingModel={embeddingModel} setEmbeddingModel={setEmbeddingModel} loading={loading} error={error} result={result} points={chunkEmbeddingPoints} onRun={handleRun} />
+        </TabsContent>
+        <TabsContent value="vector-index" className="stage-panel-shell" forceMount hidden={activeStep != "vector-index"}>
+          <VectorIndexTab currentStage={currentStage} loading={loading} error={error} result={result} onRun={handleRun} />
+        </TabsContent>
+        <TabsContent value="query-processing" className="stage-panel-shell" forceMount hidden={activeStep != "query-processing"}>
+          <QueryProcessingTab currentStage={currentStage} query={query} setQuery={setQuery} loading={loading} error={error} result={result} onRun={handleRun} />
+        </TabsContent>
+        <TabsContent value="candidate-retrieval" className="stage-panel-shell" forceMount hidden={activeStep != "candidate-retrieval"}>
+          <CandidateRetrievalTab currentStage={currentStage} topK={topK} setTopK={setTopK} vectorStore={vectorStore} setVectorStore={setVectorStore} loading={loading} error={error} result={result} onRun={handleRun} />
+        </TabsContent>
+        <TabsContent value="filtering" className="stage-panel-shell" forceMount hidden={activeStep != "filtering"}>
+          <FilteringTab currentStage={currentStage} minScore={minScore} setMinScore={setMinScore} requireKeywordOverlap={requireKeywordOverlap} setRequireKeywordOverlap={setRequireKeywordOverlap} minWordCount={minWordCount} setMinWordCount={setMinWordCount} loading={loading} error={error} result={result} onRun={handleRun} />
         </TabsContent>
         <TabsContent value="semantic-search" className="stage-panel-shell" forceMount hidden={activeStep != "semantic-search"}>
           <SemanticSearchTab currentStage={currentStage} query={query} setQuery={setQuery} vectorStore={vectorStore} setVectorStore={setVectorStore} topK={topK} setTopK={setTopK} loading={loading} error={error} result={result} points={semanticEmbeddingPoints.points} queryPoint={semanticEmbeddingPoints.queryPoint} onRun={handleRun} />

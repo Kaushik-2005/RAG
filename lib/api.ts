@@ -15,6 +15,48 @@ export type RetrievalMatch = {
   text: string;
 };
 
+export type QueryProcessingResult = {
+  original_query: string;
+  normalized_query: string;
+  lowered_query: string;
+  token_count: number;
+  keyword_tokens: string[];
+  processing_notes: string[];
+};
+
+export type CandidateRetrievalResult = {
+  distance_metric: string;
+  candidate_count: number;
+  selected_top_k: number;
+  threshold_rank: number;
+  candidates: RetrievalMatch[];
+  retrieval_notes: string[];
+};
+
+export type FilteringSettings = {
+  min_score: number;
+  require_keyword_overlap: boolean;
+  min_word_count: number;
+};
+
+export type FilteringResult = {
+  settings: FilteringSettings;
+  input_count: number;
+  kept_count: number;
+  removed_count: number;
+  filtered_candidates: RetrievalMatch[];
+  removed_candidates: RetrievalMatch[];
+  filtering_notes: string[];
+};
+
+export type VectorIndexResult = {
+  index_type: string;
+  distance_metric: string;
+  vector_dimension: number;
+  item_count: number;
+  build_notes: string[];
+};
+
 export type PipelineResponse = {
   query: string;
   source_title: string;
@@ -30,8 +72,12 @@ export type PipelineResponse = {
   top_k: number;
   answer: string;
   context: string;
+  query_processing: QueryProcessingResult;
+  candidate_retrieval: CandidateRetrievalResult;
+  filtering: FilteringResult;
   chunks: Chunk[];
   chunk_embeddings: number[][];
+  vector_index: VectorIndexResult;
   query_embedding: number[];
   retrieved_chunks: RetrievalMatch[];
 };

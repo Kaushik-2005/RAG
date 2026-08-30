@@ -6,7 +6,7 @@ import {
 } from "@langchain/textsplitters";
 import { getEncoding } from "js-tiktoken";
 
-import type { Chunk, PipelineResponse, RetrievalMatch } from "@/lib/api";
+import type { CandidateRetrievalResult, Chunk, FilteringResult, PipelineResponse, QueryProcessingResult, RetrievalMatch, VectorIndexResult } from "@/lib/api";
 import type { ChunkerValue, EmbeddingValue, VectorStoreValue } from "@/app/experiment/components/experiment-content";
 
 type PipelineInput = {
@@ -19,6 +19,9 @@ type PipelineInput = {
   embeddingModel: EmbeddingValue;
   vectorStore: VectorStoreValue;
   topK: number;
+  minScore: number;
+  requireKeywordOverlap: boolean;
+  minWordCount: number;
 };
 
 type TfIdfResources = {
@@ -49,6 +52,8 @@ const CL100K = getEncoding("cl100k_base");
 const normalizeSource = (value: string) => value.replace(/\r\n/g, "\n").trim();
 
 const tokenizeWords = (value: string) => value.toLowerCase().match(TOKEN_PATTERN) ?? [];
+
+const normalizeQueryText = (value: string) => value.replace(/\s+/g, " ").trim();
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const countTokens = (value: string) => CL100K.encode(value).length;
@@ -260,8 +265,42 @@ const embedText = (text: string, resources: EmbeddingResources) => {
   }
 };
 
-const rankChunks = (chunks: Chunk[], chunkEmbeddings: number[][], queryEmbedding: number[], vectorStore: VectorStoreValue, topK: number): RetrievalMatch[] => {
-  const matches = chunks.map((chunk, index) => {
+
+const buildVectorIndex = (chunkEmbeddings: number[][], vectorStore: VectorStoreValue, embeddingModel: EmbeddingValue, chunkCount: number): VectorIndexResult => ({
+  index_type: "flat-array",
+  distance_metric: vectorStore,
+  vector_dimension: chunkEmbeddings[0]?.length ?? 0,
+  item_count: chunkCount,
+  build_notes: [
+    "Chunk embeddings are stored in a browser-side flat array for direct similarity scoring.",
+    `Distance metric configured for retrieval: ${vectorStore}.`,
+    `Embedding model used to produce the vectors: ${embeddingModel}.`,
+    chunkCount ? "The index is ready for query-time retrieval." : "No chunks are indexed yet. Run an earlier stage or adjust chunking first.",
+  ],
+});
+
+
+const buildQueryProcessing = (query: string): QueryProcessingResult => {
+  const normalizedQuery = normalizeQueryText(query);
+  const keywordTokens = Array.from(new Set(tokenizeWords(normalizedQuery))).slice(0, 12);
+
+  return {
+    original_query: query,
+    normalized_query: normalizedQuery,
+    lowered_query: normalizedQuery.toLowerCase(),
+    token_count: countTokens(normalizedQuery),
+    keyword_tokens: keywordTokens,
+    processing_notes: [
+      "Whitespace is normalized before embedding so accidental spacing does not change the query form.",
+      "A lowered form is kept for lightweight lexical inspection and debugging.",
+      "Keyword tokens show the content-bearing terms that survive basic normalization.",
+      "Later production systems may add rewriting, expansion, classification, or safety checks here.",
+    ],
+  };
+};
+
+const scoreChunks = (chunks: Chunk[], chunkEmbeddings: number[][], queryEmbedding: number[], vectorStore: VectorStoreValue): RetrievalMatch[] => chunks
+  .map((chunk, index) => {
     const score = vectorStore === "dot"
       ? dotProduct(queryEmbedding, chunkEmbeddings[index] ?? [])
       : cosineSimilarity(queryEmbedding, chunkEmbeddings[index] ?? []);
@@ -272,22 +311,99 @@ const rankChunks = (chunks: Chunk[], chunkEmbeddings: number[][], queryEmbedding
       score,
       text: chunk.text,
     } satisfies RetrievalMatch;
-  });
+  })
+  .sort((left, right) => right.score - left.score)
+  .map((match, index) => ({ ...match, rank: index + 1 }));
 
-  return matches
-    .sort((left, right) => right.score - left.score)
-    .slice(0, clamp(topK, 1, Math.max(1, chunks.length)))
-    .map((match, index) => ({ ...match, rank: index + 1 }));
+const buildCandidateRetrieval = (matches: RetrievalMatch[], vectorStore: VectorStoreValue, topK: number): CandidateRetrievalResult => ({
+  distance_metric: vectorStore,
+  candidate_count: matches.length,
+  selected_top_k: clamp(topK, 1, Math.max(1, matches.length || 1)),
+  threshold_rank: clamp(topK, 1, Math.max(1, matches.length || 1)),
+  candidates: matches,
+  retrieval_notes: [
+    "This stage scores every indexed chunk against the processed query embedding.",
+    `Candidates are ordered by ${vectorStore} similarity before later stages focus on the selected top-k set.`,
+    "The cutoff line marks which candidates move forward into the final semantic search result set.",
+    matches.length ? `The current query produced ${matches.length} scored candidates.` : "No candidates were produced because there are no indexed chunks yet.",
+  ],
+});
+
+const selectTopK = (matches: RetrievalMatch[], topK: number): RetrievalMatch[] => matches.slice(0, clamp(topK, 1, Math.max(1, matches.length)));
+
+const buildFiltering = (
+  candidates: RetrievalMatch[],
+  chunks: Chunk[],
+  keywordTokens: string[],
+  minScore: number,
+  requireKeywordOverlap: boolean,
+  minWordCount: number,
+): FilteringResult => {
+  const keywordSet = new Set(keywordTokens);
+  const kept: RetrievalMatch[] = [];
+  const removed: RetrievalMatch[] = [];
+
+  for (const candidate of candidates) {
+    const chunk = chunks[candidate.chunk_index];
+    const chunkTokens = new Set(tokenizeWords(chunk?.text ?? ""));
+    const hasKeywordOverlap = !keywordSet.size || [...keywordSet].some((token) => chunkTokens.has(token));
+    const passesScore = candidate.score >= minScore;
+    const passesWordCount = (chunk?.word_count ?? 0) >= minWordCount;
+    const passesKeyword = requireKeywordOverlap ? hasKeywordOverlap : true;
+
+    if (passesScore && passesWordCount && passesKeyword) {
+      kept.push(candidate);
+    } else {
+      removed.push(candidate);
+    }
+  }
+
+  return {
+    settings: {
+      min_score: minScore,
+      require_keyword_overlap: requireKeywordOverlap,
+      min_word_count: minWordCount,
+    },
+    input_count: candidates.length,
+    kept_count: kept.length,
+    removed_count: removed.length,
+    filtered_candidates: kept,
+    removed_candidates: removed,
+    filtering_notes: [
+      `Minimum similarity score: ${minScore.toFixed(2)}.`,
+      `Minimum chunk word count: ${minWordCount}.`,
+      requireKeywordOverlap
+        ? "Keyword-overlap filtering is enabled, so a candidate must share at least one processed query token."
+        : "Keyword-overlap filtering is disabled, so lexical overlap is not required.",
+      removed.length
+        ? `${removed.length} candidate(s) were removed before the final semantic search view.`
+        : "No candidates were removed by the current filters.",
+    ],
+  };
 };
 
 export async function runLocalPipeline(input: PipelineInput): Promise<PipelineResponse> {
   const sourceText = normalizeSource(input.sourceText);
+  const queryProcessing = buildQueryProcessing(input.query);
   const chunks = await buildChunks(sourceText, input.chunker, input.chunkSize, input.chunkOverlap);
   const embeddingResources = buildEmbeddingResources(chunks, input.embeddingModel);
   const chunkEmbeddings = chunks.map((chunk) => embedText(chunk.text, embeddingResources));
-  const queryEmbedding = embedText(input.query, embeddingResources);
-  const retrievedChunks = rankChunks(chunks, chunkEmbeddings, queryEmbedding, input.vectorStore, input.topK);
+  const vectorIndex = buildVectorIndex(chunkEmbeddings, input.vectorStore, input.embeddingModel, chunks.length);
+  const queryEmbedding = embedText(queryProcessing.normalized_query, embeddingResources);
+  const scoredCandidates = scoreChunks(chunks, chunkEmbeddings, queryEmbedding, input.vectorStore);
+  const candidateRetrieval = buildCandidateRetrieval(scoredCandidates, input.vectorStore, input.topK);
+  const candidateWindow = selectTopK(scoredCandidates, input.topK);
+  const filtering = buildFiltering(
+    candidateWindow,
+    chunks,
+    queryProcessing.keyword_tokens,
+    input.minScore,
+    input.requireKeywordOverlap,
+    input.minWordCount,
+  );
+  const retrievedChunks = filtering.filtered_candidates;
   const context = retrievedChunks.map((match) => match.text).join("\n\n");
+
   const embeddingDimension = chunkEmbeddings[0]?.length ?? queryEmbedding.length ?? 0;
 
   return {
@@ -305,8 +421,12 @@ export async function runLocalPipeline(input: PipelineInput): Promise<PipelineRe
     top_k: input.topK,
     answer: "",
     context,
+    query_processing: queryProcessing,
+    candidate_retrieval: candidateRetrieval,
+    filtering,
     chunks,
     chunk_embeddings: chunkEmbeddings,
+    vector_index: vectorIndex,
     query_embedding: queryEmbedding,
     retrieved_chunks: retrievedChunks,
   };
