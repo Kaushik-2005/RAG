@@ -33,7 +33,7 @@ export function CandidateRetrievalTab({ currentStage, topK, setTopK, vectorStore
         <CardDescription>{currentStage.description}</CardDescription>
         <blockquote className="space-y-2 border-l-4 border-muted-foreground/25 px-4 py-2 text-xs text-muted-foreground">
           <p>This stage scores the processed query against every indexed chunk. It exposes the full candidate pool instead of only the final displayed matches.</p>
-          <p>Production systems often do more work here, such as hybrid retrieval, metadata filters, or multiple candidate generators before reranking.</p>
+          <p>Production systems often do more work here, such as hybrid retrieval, multiple candidate generators, or dense-plus-lexical recall before reranking.</p>
         </blockquote>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -65,7 +65,7 @@ export function CandidateRetrievalTab({ currentStage, topK, setTopK, vectorStore
 
         <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
           <div className="mb-2 text-xs uppercase tracking-[0.24em] text-muted-foreground">What changed from the previous stage</div>
-          <p>Query Processing prepared the query text. Candidate Retrieval now uses that processed query embedding to score the entire indexed chunk pool and draw the current top-k cutoff line.</p>
+          <p>Query Processing prepared the query text. Candidate Retrieval now uses that processed query embedding to score the entire indexed chunk pool and draw the current top-k window that enters reranking.</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.05fr_0.95fr]">
@@ -82,7 +82,7 @@ export function CandidateRetrievalTab({ currentStage, topK, setTopK, vectorStore
                           <span>Rank {match.rank}</span>
                           <span>Chunk {match.chunk_index + 1}</span>
                           <span>Score {match.score.toFixed(4)}</span>
-                          <span>{selected ? "Selected for next stage" : "Below cutoff"}</span>
+                          <span>{selected ? "Selected for reranking" : "Below cutoff"}</span>
                         </div>
                         <p className="text-sm leading-relaxed text-foreground">{match.text}</p>
                       </article>

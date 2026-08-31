@@ -528,6 +528,10 @@
 }
 
 .split-source-textarea {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: auto;
   background: rgba(255, 255, 255, 0.95);
 }
 
@@ -586,6 +590,7 @@
 .dark .embed-list-frame,
 .dark .search-results-frame,
 .dark .split-chunks-frame,
+.dark .split-source-frame,
 .dark .stage-panel-shell,
 .dark .split-stat-card,
 .dark .embed-chunk-item,

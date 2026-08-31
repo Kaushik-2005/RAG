@@ -53,7 +53,7 @@ export function GenerationTab({ currentStage, loading, error, result, onRun }: P
                     </div>
                     <div className="rounded-md bg-muted p-4">
                       <p className="mb-2 text-sm font-medium">User Message</p>
-                      <pre className="whitespace-pre-wrap text-sm leading-relaxed">Question:\n{result.query}\n\nContext:\n{result.context}</pre>
+                      <pre className="whitespace-pre-wrap text-sm leading-relaxed">{`Question:` + "\n" + result.query + "\n\nContext:\n" + result.context}</pre>
                     </div>
                   </div>
                 ) : (

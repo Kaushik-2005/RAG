@@ -1,5 +1,8 @@
 export type Chunk = {
   index: number;
+  document_id: string;
+  document_title: string;
+  document_chunk_index: number;
   text: string;
   char_count: number;
   word_count: number;
@@ -11,6 +14,9 @@ export type Chunk = {
 export type RetrievalMatch = {
   rank: number;
   chunk_index: number;
+  document_id: string;
+  document_title: string;
+  document_chunk_index: number;
   score: number;
   text: string;
 };
@@ -18,6 +24,7 @@ export type RetrievalMatch = {
 export type QueryProcessingResult = {
   original_query: string;
   normalized_query: string;
+  expanded_query: string;
   lowered_query: string;
   token_count: number;
   keyword_tokens: string[];
@@ -31,6 +38,29 @@ export type CandidateRetrievalResult = {
   threshold_rank: number;
   candidates: RetrievalMatch[];
   retrieval_notes: string[];
+};
+
+export type RerankedCandidate = {
+  original_rank: number;
+  reranked_rank: number;
+  chunk_index: number;
+  document_id: string;
+  document_title: string;
+  document_chunk_index: number;
+  semantic_score: number;
+  rerank_bonus: number;
+  final_score: number;
+  reason_labels: string[];
+  text: string;
+};
+
+export type RerankingResult = {
+  strategy: string;
+  input_count: number;
+  reranked_count: number;
+  cutoff_rank: number;
+  reranked_candidates: RerankedCandidate[];
+  reranking_notes: string[];
 };
 
 export type FilteringSettings = {
@@ -49,12 +79,58 @@ export type FilteringResult = {
   filtering_notes: string[];
 };
 
+export type DocumentIndexSummary = {
+  document_id: string;
+  document_title: string;
+  chunk_count: number;
+};
+
 export type VectorIndexResult = {
   index_type: string;
   distance_metric: string;
   vector_dimension: number;
   item_count: number;
+  document_count: number;
+  document_chunk_counts: DocumentIndexSummary[];
   build_notes: string[];
+};
+
+export type ContextBlock = {
+  citation_id: string;
+  document_title: string;
+  document_chunk_index: number;
+  score: number;
+  text: string;
+  char_count: number;
+  token_count: number;
+};
+
+export type ContextConstructionResult = {
+  block_count: number;
+  total_characters: number;
+  total_tokens: number;
+  assembled_context: string;
+  blocks: ContextBlock[];
+  construction_notes: string[];
+};
+
+export type CitationItem = {
+  citation_id: string;
+  document_title: string;
+  document_chunk_index: number;
+  score: number;
+  char_count: number;
+  snippet: string;
+};
+
+export type EvaluationResult = {
+  groundedness_score: number;
+  query_coverage_score: number;
+  citation_coverage_score: number;
+  answer_word_count: number;
+  context_block_count: number;
+  verdict: string;
+  notes: string[];
 };
 
 export type PipelineResponse = {
@@ -74,7 +150,12 @@ export type PipelineResponse = {
   context: string;
   query_processing: QueryProcessingResult;
   candidate_retrieval: CandidateRetrievalResult;
+  reranking: RerankingResult;
   filtering: FilteringResult;
+  context_construction: ContextConstructionResult;
+  citations: CitationItem[];
+  evaluation: EvaluationResult | null;
+  active_document_chunks: Chunk[];
   chunks: Chunk[];
   chunk_embeddings: number[][];
   vector_index: VectorIndexResult;
@@ -94,7 +175,9 @@ export async function generateGroundedAnswer(input: { query: string; context: st
   const payload = (await response.json()) as { answer?: string; error?: string; details?: string };
 
   if (!response.ok || !payload.answer) {
-    const message = payload.details ? `${payload.error ?? `Generation request failed: ${response.status}`}\n${payload.details}` : (payload.error ?? `Generation request failed: ${response.status}`);
+    const message = payload.details
+      ? `${payload.error ?? `Generation request failed: ${response.status}`}\n${payload.details}`
+      : (payload.error ?? `Generation request failed: ${response.status}`);
     throw new Error(message);
   }
 

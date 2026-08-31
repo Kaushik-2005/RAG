@@ -33,7 +33,7 @@ export function FilteringTab({ currentStage, minScore, setMinScore, requireKeywo
         <CardDescription>{currentStage.description}</CardDescription>
         <blockquote className="space-y-2 border-l-4 border-muted-foreground/25 px-4 py-2 text-xs text-muted-foreground">
           <p>Filtering removes candidates that are technically retrievable but not desirable enough to pass forward.</p>
-          <p>Real systems often filter by metadata, permissions, freshness, language, or lexical requirements before any reranker is used.</p>
+          <p>Real systems often filter by metadata, permissions, freshness, language, or lexical requirements after retrieval and often after reranking.</p>
         </blockquote>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -65,7 +65,7 @@ export function FilteringTab({ currentStage, minScore, setMinScore, requireKeywo
 
         <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
           <div className="mb-2 text-xs uppercase tracking-[0.24em] text-muted-foreground">What changed from the previous stage</div>
-          <p>Candidate Retrieval produced a scored top-k window. Filtering now prunes that window using explicit rules before the final semantic-search view is shown.</p>
+          <p>Reranking reordered the top-k candidate window. Filtering now prunes that reranked window using explicit rules before the final semantic-search view is shown.</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
