@@ -5,7 +5,8 @@ import "./globals.css";
 import { Footer } from "@/app/components/footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Header } from "@/app/components/header";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from '@/components/ui/sonner';
+import { Analytics } from '@vercel/analytics/react';
 
 export const metadata: Metadata = {
   title: "RAG Lab - Interactive RAG Pipeline Visualization",
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {children}
           <Footer />
           <Toaster />
+          <Analytics />
         </ThemeProvider>
       </body>
     </html>
